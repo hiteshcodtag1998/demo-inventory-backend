@@ -9,7 +9,6 @@ const soldStock = async (productID, stockSoldData) => {
 
     const myProductData = await SecondaryProduct.findOne({ _id: productID });
     let myUpdatedStock = myProductData.stock - stockSoldData;
-    console.log("MY SOLD STOCK: ", myUpdatedStock);
 
     const SoldStock = await SecondaryProduct.findByIdAndUpdate(
       { _id: productID },

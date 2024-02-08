@@ -44,25 +44,25 @@ const deleteSelectedProduct = async (req, res) => {
     })
   });
 
-  // const deletePurchaseProduct = await Purchase.deleteOne(
-  //   { ProductID: req.params.id }
-  // ).then(async () => {
-  //   await PrimaryPurchase.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
-  //     console.log('Primary purchase error')
-  //   })
-  // });
+  const deletePurchaseProduct = await SecondaryPurchase.deleteOne(
+    { ProductID: req.params.id }
+  ).then(async () => {
+    await PrimaryPurchase.findByIdAndUpdate({ ProductID: req.params.id }, { isActive: false }).catch(() => {
+      console.log('Primary purchase error')
+    })
+  });
 
-  // const deleteSaleProduct = await Sales.deleteOne(
-  //   { ProductID: req.params.id }
-  // ).then(async () => {
-  //   await PrimarySales.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
-  //     console.log('Primary sales error')
-  //   })
-  // });
+  const deleteSaleProduct = await SecondarySales.deleteOne(
+    { ProductID: req.params.id }
+  ).then(async () => {
+    await PrimarySales.findByIdAndUpdate({ ProductID: req.params.id }, { isActive: false }).catch(() => {
+      console.log('Primary sales error')
+    })
+  });
 
   res.json({
     deleteProduct,
-    // deletePurchaseProduct, deleteSaleProduct
+    deletePurchaseProduct, deleteSaleProduct
   });
 };
 
@@ -78,7 +78,12 @@ const updateSelectedProduct = async (req, res) => {
       },
       { new: true }
     );
-    console.log(updatedResult);
+
+    await PrimaryProduct.findByIdAndUpdate({ _id: req.body.productID }, {
+      name: req.body.name,
+      manufacturer: req.body.manufacturer,
+      description: req.body.description,
+    })
     res.json(updatedResult);
   } catch (error) {
     res.status(402).send("Error");
