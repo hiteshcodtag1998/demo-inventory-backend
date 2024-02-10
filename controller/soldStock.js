@@ -8,7 +8,7 @@ const soldStock = async (productID, stockSoldData) => {
   try {
 
     const myProductData = await SecondaryProduct.findOne({ _id: productID });
-    let myUpdatedStock = myProductData.stock - stockSoldData;
+    let myUpdatedStock = myProductData?.stock ? (myProductData?.stock - stockSoldData) : 0;
 
     const SoldStock = await SecondaryProduct.findByIdAndUpdate(
       { _id: productID },

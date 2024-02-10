@@ -1,28 +1,47 @@
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const soldStock = require("../controller/soldStock");
 const ROLES = require("../utils/constant");
+const { SecondaryProduct } = require("../models/Product");
 
 // Add Sales
-const addSales = (req, res) => {
-  const addSale = new SecondarySales({
+const addSales = async (req, res) => {
+
+  const payload = {
     userID: req.body.userID,
     ProductID: req.body.productID,
     StoreID: req.body.storeID,
     StockSold: req.body.stockSold,
     SaleDate: req.body.saleDate,
     TotalSaleAmount: req.body.totalSaleAmount,
-  });
+  }
 
-  addSale
-    .save()
-    .then(async (result) => {
-      await PrimarySales.insertMany([result]).catch(err => console.log('Err', err))
-      soldStock(req.body.productID, req.body.stockSold);
-      res.status(200).send(result);
-    })
-    .catch((err) => {
-      res.status(402).send(err);
-    });
+  const isExistProduct = await SecondaryProduct.findById(req.body.productID)
+
+  if (isExistProduct) {
+
+    const addSale = new SecondarySales(payload);
+    addSale
+      .save()
+      .then(async (result) => {
+        await PrimarySales.insertMany([result]).catch(err => console.log('Err', err))
+        soldStock(req.body.productID, req.body.stockSold);
+        res.status(200).send(result);
+      })
+      .catch((err) => {
+        res.status(402).send(err);
+      });
+  } else {
+    const addSale = new PrimarySales(payload);
+    addSale
+      .save()
+      .then(async (result) => {
+        soldStock(req.body.productID, req.body.stockSold);
+        res.status(200).send(result);
+      })
+      .catch((err) => {
+        res.status(402).send(err);
+      });
+  }
 };
 
 // Get All Sales Data
@@ -75,7 +94,14 @@ const getSalesData = async (req, res) => {
 // Get total sales amount
 const getTotalSalesAmount = async (req, res) => {
   let totalSaleAmount = 0;
-  const salesData = await SecondarySales.find();
+
+  let salesData = []
+  if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    salesData = await PrimarySales.find();
+  else
+    salesData = await SecondarySales.find();
+
+
   salesData.forEach((sale) => {
     totalSaleAmount += sale.TotalSaleAmount;
   })
@@ -85,7 +111,11 @@ const getTotalSalesAmount = async (req, res) => {
 
 const getMonthlySales = async (req, res) => {
   try {
-    const sales = await SecondarySales.find();
+    let sales = []
+    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+      sales = await PrimarySales.find();
+    else
+      sales = await SecondarySales.find();
 
     // Initialize array with 12 zeros
     const salesAmount = [];
