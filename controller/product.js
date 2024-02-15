@@ -1,7 +1,8 @@
 const { PrimaryProduct, SecondaryProduct } = require("../models/Product");
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const { PrimarySales, SecondarySales } = require("../models/sales");
-const ROLES = require("../utils/constant");
+const { ROLES, HISTORY_TYPE } = require("../utils/constant");
+const { addHistoryData } = require("./history");
 
 // Add Post
 const addProduct = (req, res) => {
@@ -16,6 +17,12 @@ const addProduct = (req, res) => {
   addProduct
     .save()
     .then(async (result) => {
+      const historyPayload = {
+        productID: result._id,
+        description: `ProductId: ${result._id} added`,
+        type: HISTORY_TYPE.ADD
+      }
+      addHistoryData(historyPayload).catch(err => console.log('Err', err))
       await PrimaryProduct.insertMany([result]).catch(err => console.log('Err', err))
       res.status(200).send(result);
     })
@@ -38,7 +45,13 @@ const getAllProducts = async (req, res) => {
 const deleteSelectedProduct = async (req, res) => {
   const deleteProduct = await SecondaryProduct.deleteOne(
     { _id: req.params.id }
-  ).then(async () => {
+  ).then(async (result) => {
+    const historyPayload = {
+      productID: req.params.id,
+      description: `ProductId: ${req.params.id} deleted`,
+      type: HISTORY_TYPE.DELETE
+    }
+    addHistoryData(historyPayload).catch(err => console.log('Err', err))
     await PrimaryProduct.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
       console.log('Primary product error')
     })
@@ -78,6 +91,13 @@ const updateSelectedProduct = async (req, res) => {
       },
       { new: true }
     );
+
+    const historyPayload = {
+      productID: updatedResult._id,
+      description: `ProductId: ${updatedResult._id} updated`,
+      type: HISTORY_TYPE.UPDATE
+    }
+    addHistoryData(historyPayload).catch(err => console.log('Err', err))
 
     await PrimaryProduct.findByIdAndUpdate({ _id: req.body.productID }, {
       name: req.body.name,

@@ -3,4 +3,10 @@ const ROLES = {
     SUPER_ADMIN: 'SuperAdmin'
 }
 
-module.exports = ROLES
+const HISTORY_TYPE = {
+    ADD: 'add',
+    UPDATE: 'update',
+    DELETE: 'delete'
+}
+
+module.exports = { ROLES, HISTORY_TYPE }
