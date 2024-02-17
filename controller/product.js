@@ -22,7 +22,7 @@ const addProduct = (req, res) => {
         description: `ProductId: ${result._id} added`,
         type: HISTORY_TYPE.ADD
       }
-      addHistoryData(historyPayload).catch(err => console.log('Err', err))
+      addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
       await PrimaryProduct.insertMany([result]).catch(err => console.log('Err', err))
       res.status(200).send(result);
     })
@@ -51,7 +51,7 @@ const deleteSelectedProduct = async (req, res) => {
       description: `ProductId: ${req.params.id} deleted`,
       type: HISTORY_TYPE.DELETE
     }
-    addHistoryData(historyPayload).catch(err => console.log('Err', err))
+    addHistoryData(historyPayload, req?.headers?.role, HISTORY_TYPE.DELETE).catch(err => console.log('Err', err))
     await PrimaryProduct.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
       console.log('Primary product error')
     })
@@ -97,7 +97,7 @@ const updateSelectedProduct = async (req, res) => {
       description: `ProductId: ${updatedResult._id} updated`,
       type: HISTORY_TYPE.UPDATE
     }
-    addHistoryData(historyPayload).catch(err => console.log('Err', err))
+    addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
 
     await PrimaryProduct.findByIdAndUpdate({ _id: req.body.productID }, {
       name: req.body.name,

@@ -1,5 +1,5 @@
 const { PrimaryHistory, SecondaryHistory } = require("../models/history");
-const ROLES = require("../utils/constant");
+const { ROLES, HISTORY_TYPE } = require("../utils/constant");
 
 // Add Post History
 const addHistory = async (req, res) => {
@@ -79,16 +79,25 @@ const updateSelectedHistory = async (req, res) => {
     }
 };
 
-const addHistoryData = async (data) => {
-    const addHistory = new SecondaryHistory(data);
+const addHistoryData = async (data, role = null, type = null) => {
 
-    return await addHistory
-        .save()
-        .then(async (result) => {
-            await PrimaryHistory.insertMany([result]).catch(err => console.log('Err', err))
-            return result;
-        })
-        .catch((err) => err);
+    try {
+        let secondaryResult = data
+
+        if (type === HISTORY_TYPE.DELETE) {
+            secondaryResult = await SecondaryHistory.insertMany([secondaryResult]).catch(err => console.log('Err', err))
+            if (role === ROLES.SUPER_ADMIN) {
+                await PrimaryHistory.insertMany([{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+                if (type === HISTORY_TYPE.DELETE) await SecondaryHistory.deleteMany({ productID: secondaryResult?.[0]?.productID })
+            }
+        } else {
+            secondaryResult = await SecondaryHistory.insertMany([secondaryResult]).catch(err => console.log('Err', err))
+            await PrimaryHistory.insertMany([{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+        }
+
+    } catch (error) {
+        console.log('Err', err)
+    }
 }
 
 module.exports = {
