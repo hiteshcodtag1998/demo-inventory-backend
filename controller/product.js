@@ -19,7 +19,7 @@ const addProduct = (req, res) => {
     .then(async (result) => {
       const historyPayload = {
         productID: result._id,
-        description: `ProductId: ${result._id} added`,
+        description: `${result?.name || ""} product added`,
         type: HISTORY_TYPE.ADD
       }
       addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
@@ -43,12 +43,13 @@ const getAllProducts = async (req, res) => {
 
 // Delete Selected Product
 const deleteSelectedProduct = async (req, res) => {
+  const product = await SecondaryProduct.findOne({ _id: req.params.id }).lean();
   const deleteProduct = await SecondaryProduct.deleteOne(
     { _id: req.params.id }
   ).then(async (result) => {
     const historyPayload = {
       productID: req.params.id,
-      description: `ProductId: ${req.params.id} deleted`,
+      description: `${product?.name || ""} product deleted`,
       type: HISTORY_TYPE.DELETE
     }
     addHistoryData(historyPayload, req?.headers?.role, HISTORY_TYPE.DELETE).catch(err => console.log('Err', err))
@@ -94,7 +95,7 @@ const updateSelectedProduct = async (req, res) => {
 
     const historyPayload = {
       productID: updatedResult._id,
-      description: `ProductId: ${updatedResult._id} updated`,
+      description: `${updatedResult?.name || ""} product updated`,
       type: HISTORY_TYPE.UPDATE
     }
     addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
