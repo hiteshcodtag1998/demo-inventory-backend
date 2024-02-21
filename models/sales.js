@@ -16,7 +16,6 @@ const SaleSchema = new mongoose.Schema(
     StoreID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "store",
-      required: true,
     },
     StockSold: {
       type: Number,
@@ -28,7 +27,12 @@ const SaleSchema = new mongoose.Schema(
     },
     TotalSaleAmount: {
       type: Number,
-      required: true,
+    },
+    SupplierName: {
+      type: String,
+    },
+    StoreName: {
+      type: String,
     },
     isActive: {
       type: Boolean,

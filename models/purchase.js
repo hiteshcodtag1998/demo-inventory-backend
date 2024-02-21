@@ -23,7 +23,17 @@ const PurchaseSchema = new mongoose.Schema(
     },
     TotalPurchaseAmount: {
       type: Number,
+    },
+    SupplierName: {
+      type: String,
+    },
+    BrandID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "brand",
       required: true,
+    },
+    StoreName: {
+      type: String,
     },
     isActive: {
       type: Boolean,

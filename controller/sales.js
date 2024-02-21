@@ -9,10 +9,12 @@ const addSales = async (req, res) => {
   const payload = {
     userID: req.body.userID,
     ProductID: req.body.productID,
-    StoreID: req.body.storeID,
+    // StoreID: req.body.storeID,
     StockSold: req.body.stockSold,
     SaleDate: req.body.saleDate,
-    TotalSaleAmount: req.body.totalSaleAmount,
+    SupplierName: req.body.supplierName,
+    StoreName: req.body.storeName
+    // TotalSaleAmount: req.body.totalSaleAmount,
   }
 
   const isExistProduct = await SecondaryProduct.findById(req.body.productID)
@@ -59,17 +61,17 @@ const getSalesData = async (req, res) => {
     {
       $unwind: "$ProductID"
     },
-    {
-      $lookup: {
-        from: 'stores',
-        localField: 'StoreID',
-        foreignField: '_id',
-        as: 'StoreID'
-      }
-    },
-    {
-      $unwind: "$StoreID"
-    },
+    // {
+    //   $lookup: {
+    //     from: 'stores',
+    //     localField: 'StoreID',
+    //     foreignField: '_id',
+    //     as: 'StoreID'
+    //   }
+    // },
+    // {
+    //   $unwind: "$StoreID"
+    // },
     {
       $project: {
         userID: 1,
@@ -78,6 +80,8 @@ const getSalesData = async (req, res) => {
         QuantityPurchased: 1,
         StockSold: 1,
         SaleDate: 1,
+        SupplierName: 1,
+        StoreName: 1,
         TotalSaleAmount: 1,
         isActive: 1,
         createdAt: 1,

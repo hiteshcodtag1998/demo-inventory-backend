@@ -4,12 +4,16 @@ const purchaseStock = require("./purchaseStock");
 
 // Add Purchase Details
 const addPurchase = (req, res) => {
+  console.log('req.body', req.body)
   const addPurchaseDetails = new SecondaryPurchase({
     userID: req.body.userID,
     ProductID: req.body.productID,
     QuantityPurchased: req.body.quantityPurchased,
     PurchaseDate: req.body.purchaseDate,
-    TotalPurchaseAmount: req.body.totalPurchaseAmount,
+    // TotalPurchaseAmount: req.body.totalPurchaseAmount,
+    SupplierName: req.body.supplierName,
+    StoreName: req.body.storeName,
+    BrandID: req.body.brandID
   });
 
   addPurchaseDetails
@@ -44,11 +48,36 @@ const getPurchaseData = async (req, res) => {
     $unwind: "$ProductID"
   },
   {
+    $lookup: {
+      from: 'brands',
+      localField: 'BrandID',
+      foreignField: '_id',
+      as: 'BrandID'
+    }
+  },
+  {
+    $unwind: {
+      path: "$BrandID",
+      preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+    }
+  },
+  {
+    $match: {
+      $or: [
+        { BrandID: { $exists: true } }, // Include records with valid BrandID
+        { BrandID: undefined } // Include records where BrandID is undefined
+      ]
+    }
+  },
+  {
     $project: {
       userID: 1,
       ProductID: 1,
       QuantityPurchased: 1,
       PurchaseDate: 1,
+      SupplierName: 1,
+      StoreName: 1,
+      BrandID: 1,
       TotalPurchaseAmount: 1,
       isActive: 1,
       createdAt: 1,
