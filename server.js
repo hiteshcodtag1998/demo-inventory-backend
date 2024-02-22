@@ -9,6 +9,7 @@ const salesRoute = require("./router/sales");
 const historyRoute = require("./router/history");
 const brandRoute = require("./router/brand");
 const warehouseRoute = require("./router/warehouse")
+const writeOffRoute = require("./router/writeOff")
 const cors = require("cors");
 const { PrimaryUser, SecondaryUser } = require("./models/users");
 const Product = require("./models/Product");
@@ -46,6 +47,9 @@ app.use("/api/brand", brandRoute);
 
 // Brand API
 app.use("/api/warehouse", warehouseRoute);
+
+// WriteOff API
+app.use("/api/writeoff", writeOffRoute);
 
 // ------------- Signin --------------
 let userAuthCheck;

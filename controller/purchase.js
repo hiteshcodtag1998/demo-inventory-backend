@@ -4,7 +4,6 @@ const purchaseStock = require("./purchaseStock");
 
 // Add Purchase Details
 const addPurchase = (req, res) => {
-  console.log('req.body', req.body)
   const addPurchaseDetails = new SecondaryPurchase({
     userID: req.body.userID,
     ProductID: req.body.productID,
