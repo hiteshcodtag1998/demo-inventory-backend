@@ -10,6 +10,7 @@ const historyRoute = require("./router/history");
 const brandRoute = require("./router/brand");
 const warehouseRoute = require("./router/warehouse")
 const writeOffRoute = require("./router/writeOff")
+const transferStockRoute = require("./router/transferStock")
 const cors = require("cors");
 const { PrimaryUser, SecondaryUser } = require("./models/users");
 const Product = require("./models/Product");
@@ -50,6 +51,9 @@ app.use("/api/warehouse", warehouseRoute);
 
 // WriteOff API
 app.use("/api/writeoff", writeOffRoute);
+
+// TransferStock API
+app.use("/api/transferstock", transferStockRoute);
 
 // ------------- Signin --------------
 let userAuthCheck;
