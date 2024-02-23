@@ -1,5 +1,7 @@
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const ROLES = require("../utils/constant");
+const { generatePDFfromHTML } = require("../utils/pdfDownload");
+const { invoiceBill } = require("../utils/templates/invoice-bill");
 const purchaseStock = require("./purchaseStock");
 
 // Add Purchase Details
@@ -109,4 +111,20 @@ const getTotalPurchaseAmount = async (req, res) => {
   res.json({ totalPurchaseAmount });
 };
 
-module.exports = { addPurchase, getPurchaseData, getTotalPurchaseAmount };
+const purchasePdfDownload = (req, res) => {
+  try {
+    console.log('req', req.body)
+    const payload = {
+      supplierName: req.body?.SupplierName || "",
+      storeName: req.body?.StoreName || "",
+      qty: req.body?.QuantityPurchased || "",
+      productName: req.body?.ProductID?.name || ""
+    }
+    // Usage
+    generatePDFfromHTML(invoiceBill(payload), res);
+  } catch (error) {
+    console.log('error in productPdfDownload', error)
+  }
+}
+
+module.exports = { addPurchase, getPurchaseData, getTotalPurchaseAmount, purchasePdfDownload };

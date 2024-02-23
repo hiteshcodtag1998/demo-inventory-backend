@@ -13,11 +13,11 @@ const WriteOffSchema = new mongoose.Schema(
             ref: "product",
             required: true,
         },
-        QuantityPurchased: {
+        StockSold: {
             type: Number,
             required: true,
         },
-        PurchaseDate: {
+        SaleDate: {
             type: String,
             required: true,
         },

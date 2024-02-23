@@ -12,6 +12,8 @@ app.get("/getmonthly", sales.getMonthlySales);
 
 app.get("/get/totalsaleamount", sales.getTotalSalesAmount);
 
+app.post("/sale-pdf-download", sales.salePdfDownload)
+
 module.exports = app;
 
 

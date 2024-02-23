@@ -31,6 +31,11 @@ const SaleSchema = new mongoose.Schema(
     SupplierName: {
       type: String,
     },
+    BrandID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "brand",
+      required: true,
+    },
     StoreName: {
       type: String,
     },

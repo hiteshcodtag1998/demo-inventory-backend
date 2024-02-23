@@ -2,6 +2,8 @@ const { PrimarySales, SecondarySales } = require("../models/sales");
 const soldStock = require("../controller/soldStock");
 const ROLES = require("../utils/constant");
 const { SecondaryProduct } = require("../models/Product");
+const { generatePDFfromHTML } = require("../utils/pdfDownload");
+const { invoiceBill } = require("../utils/templates/invoice-bill");
 
 // Add Sales
 const addSales = async (req, res) => {
@@ -13,7 +15,8 @@ const addSales = async (req, res) => {
     StockSold: req.body.stockSold,
     SaleDate: req.body.saleDate,
     SupplierName: req.body.supplierName,
-    StoreName: req.body.storeName
+    StoreName: req.body.storeName,
+    BrandID: req.body.brandID
     // TotalSaleAmount: req.body.totalSaleAmount,
   }
 
@@ -139,6 +142,22 @@ const getMonthlySales = async (req, res) => {
   }
 };
 
+const salePdfDownload = (req, res) => {
+  try {
+    console.log('req', req.body)
+    // Usage
+    const payload = {
+      supplierName: req.body?.SupplierName || "",
+      storeName: req.body?.StoreName || "",
+      qty: req.body?.StockSold || "",
+      productName: req.body?.ProductID?.name || ""
+    }
+    generatePDFfromHTML(invoiceBill(payload), res);
+  } catch (error) {
+    console.log('error in productPdfDownload', error)
+  }
+}
 
 
-module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount };
+
+module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount, salePdfDownload };

@@ -146,21 +146,10 @@ const searchProduct = async (req, res) => {
   res.json(findAllProducts);
 };
 
-const productPdfDownload = (req, res) => {
-  try {
-    console.log('productPdfDownload')
-    // Usage
-    generatePDFfromHTML(invoiceBill(), res);
-  } catch (error) {
-    console.log('error in productPdfDownload', error)
-  }
-}
-
 module.exports = {
   addProduct,
   getAllProducts,
   deleteSelectedProduct,
   updateSelectedProduct,
-  searchProduct,
-  productPdfDownload
+  searchProduct
 };

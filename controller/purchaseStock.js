@@ -3,6 +3,7 @@ const { SecondaryProduct } = require("../models/Product");
 const purchaseStock = async (productID, purchaseStockData) => {
   // Updating Purchase stock
   try {
+    console.log('--->productID, purchaseStockData', productID, purchaseStockData)
     const myProductData = await SecondaryProduct.findOne({ _id: productID });
     let myUpdatedStock = parseInt(myProductData.stock) + purchaseStockData;
 

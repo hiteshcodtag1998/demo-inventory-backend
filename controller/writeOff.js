@@ -1,15 +1,18 @@
 const { PrimaryWriteOff, SecondaryWriteOff } = require("../models/writeOff");
 const ROLES = require("../utils/constant");
+const { generatePDFfromHTML } = require("../utils/pdfDownload");
+const { invoiceBill } = require("../utils/templates/invoice-bill");
 const purchaseStock = require("./purchaseStock");
+const soldStock = require("./soldStock");
 
 // Add Purchase Details
 const addWriteOff = (req, res) => {
     const addPurchaseDetails = new SecondaryWriteOff({
         userID: req.body.userID,
         ProductID: req.body.productID,
-        QuantityPurchased: req.body.quantityPurchased,
-        PurchaseDate: req.body.purchaseDate,
-        // TotalPurchaseAmount: req.body.totalPurchaseAmount,
+        // StoreID: req.body.storeID,
+        StockSold: req.body.stockSold,
+        SaleDate: req.body.saleDate,
         SupplierName: req.body.supplierName,
         StoreName: req.body.storeName,
         BrandID: req.body.brandID
@@ -19,7 +22,7 @@ const addWriteOff = (req, res) => {
         .save()
         .then(async (result) => {
             await PrimaryWriteOff.insertMany([result]).catch(err => console.log('Err', err))
-            purchaseStock(req.body.productID, req.body.quantityPurchased);
+            soldStock(req.body.productID, req.body.stockSold);
             res.status(200).send(result);
         })
         .catch((err) => {
@@ -68,12 +71,12 @@ const getWriteOffData = async (req, res) => {
         $project: {
             userID: 1,
             ProductID: 1,
-            QuantityPurchased: 1,
-            PurchaseDate: 1,
+            StockSold: 1,
+            SaleDate: 1,
             SupplierName: 1,
             StoreName: 1,
             BrandID: 1,
-            TotalPurchaseAmount: 1,
+            TotalSaleAmount: 1,
             isActive: 1,
             createdAt: 1,
             updatedAt: 1
@@ -105,4 +108,20 @@ const getTotalPurchaseAmount = async (req, res) => {
     res.json({ totalPurchaseAmount });
 };
 
-module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount };
+const writeOffPdfDownload = (req, res) => {
+    try {
+        console.log('req', req.body)
+        // Usage
+        const payload = {
+            supplierName: req.body?.SupplierName || "",
+            storeName: req.body?.StoreName || "",
+            qty: req.body?.StockSold || "",
+            productName: req.body?.ProductID?.name || ""
+        }
+        generatePDFfromHTML(invoiceBill(payload), res);
+    } catch (error) {
+        console.log('error in productPdfDownload', error)
+    }
+}
+
+module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount, writeOffPdfDownload };

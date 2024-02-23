@@ -1,5 +1,5 @@
 
-const invoiceBill = () => {
+const invoiceBill = (data) => {
     return `<!DOCTYPE html>
 <html lang="en">
 
@@ -34,19 +34,19 @@ const invoiceBill = () => {
         }
 
         div {
-            margin-top: 7em;
+            margin-top: 2em;
         }
     </style>
 </head>
 
 <body>
-    <h1>Invoice {{ invoiceNumber }}</h1>
+    <h1>Invoice</h1>
     <div style="display: flex; justify-content: space-between">
         <div>
-            {{#companyDetails}} {{ . }}<br /> {{/companyDetails}}
+            SupplierName: ${data?.supplierName || ""}
         </div>
         <div>
-            {{#customerDetails}} {{ . }}<br /> {{/customerDetails}}
+            StoreName: ${data?.storeName || ""}
         </div>
     </div>
 
@@ -55,26 +55,16 @@ const invoiceBill = () => {
             <thead>
                 <tr style="font-weight: bold">
                     <th style="width: 40%">Item</th>
-                    <th style="width: 20%; text-align: right">Price per unit</th>
                     <th style="width: 10%; text-align: right">Qty</th>
-                    <th style="width: 20%; text-align: right">Price</th>
                 </tr>
             </thead>
             <tbody>
-                {{#items}}
+
                 <tr>
-                    <td>{{ item }}</td>
-                    <td style="text-align: right">{{ pricePerUnit }}$</td>
-                    <td style="text-align: right">{{ quantity }}</td>
-                    <td style="text-align: right">{{ price }}$</td>
+                    <td>${data?.productName || ""}</td>
+                    <td style="text-align: right">${data?.qty || ""}</td>
                 </tr>
-                {{/items}}
-                <tr style="height: 5em; vertical-align: bottom">
-                    <td></td>
-                    <td></td>
-                    <td style="font-weight: bold; text-align: right">Total</td>
-                    <td style="text-align: right">{{ total }}$</td>
-                </tr>
+
             </tbody>
         </table>
     </div>
@@ -86,3 +76,10 @@ const invoiceBill = () => {
 module.exports = {
     invoiceBill
 }
+
+{/* <tr style="height: 5em; vertical-align: bottom">
+                    <td></td>
+                    <td></td>
+                    <td style="font-weight: bold; text-align: right">Total</td>
+                    <td style="text-align: right">{{ total }}$</td>
+                </tr> */}
