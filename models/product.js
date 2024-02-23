@@ -20,6 +20,7 @@ const ProductSchema = new mongoose.Schema(
       required: true,
     },
     description: String,
+    productCode: String,
     isActive: {
       type: Boolean,
       default: true

@@ -2,16 +2,23 @@ const { PrimaryProduct, SecondaryProduct } = require("../models/Product");
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const { ROLES, HISTORY_TYPE } = require("../utils/constant");
+const { generatePDFfromHTML } = require("../utils/pdfDownload");
+const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { addHistoryData } = require("./history");
+
+const { v4: uuidv4 } = require('uuid');
 
 // Add Post
 const addProduct = (req, res) => {
+  const productCode = `${req.body.name?.toUpperCase()}-${uuidv4().split('-')[0]}`
+
   const addProduct = new SecondaryProduct({
     userID: req.body.userId,
     name: req.body.name,
     manufacturer: req.body.manufacturer,
     stock: 0,
     description: req.body.description,
+    productCode
   });
 
   addProduct
@@ -20,7 +27,8 @@ const addProduct = (req, res) => {
       const historyPayload = {
         productID: result._id,
         description: `${result?.name || ""} product added`,
-        type: HISTORY_TYPE.ADD
+        type: HISTORY_TYPE.ADD,
+        productCode
       }
       addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
       await PrimaryProduct.insertMany([result]).catch(err => console.log('Err', err))
@@ -83,12 +91,14 @@ const deleteSelectedProduct = async (req, res) => {
 // Update Selected Product
 const updateSelectedProduct = async (req, res) => {
   try {
+    const productCode = `${req.body.name?.toUpperCase()}-${uuidv4().split('-')[0]}`
     const updatedResult = await SecondaryProduct.findByIdAndUpdate(
       { _id: req.body.productID },
       {
         name: req.body.name,
         manufacturer: req.body.manufacturer,
         description: req.body.description,
+        productCode
       },
       { new: true }
     );
@@ -96,7 +106,8 @@ const updateSelectedProduct = async (req, res) => {
     const historyPayload = {
       productID: updatedResult._id,
       description: `${updatedResult?.name || ""} product updated`,
-      type: HISTORY_TYPE.UPDATE
+      type: HISTORY_TYPE.UPDATE,
+      productCode
     }
     addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
 
@@ -119,15 +130,31 @@ const searchProduct = async (req, res) => {
   if (req?.headers?.role === ROLES.SUPER_ADMIN)
     findAllProducts = await PrimaryProduct
       .find({
-        name: { $regex: searchTerm, $options: "i" },
+        $or: [
+          { name: { $regex: searchTerm, $options: "i" } },
+          { productCode: { $regex: searchTerm, $options: "i" } }
+        ],
       }).sort({ _id: -1 });
   else
     findAllProducts = await SecondaryProduct
       .find({
-        name: { $regex: searchTerm, $options: "i" },
+        $or: [
+          { name: { $regex: searchTerm, $options: "i" } },
+          { productCode: { $regex: searchTerm, $options: "i" } }
+        ],
       }).sort({ _id: -1 }); // -1 for descending;
   res.json(findAllProducts);
 };
+
+const productPdfDownload = (req, res) => {
+  try {
+    console.log('productPdfDownload')
+    // Usage
+    generatePDFfromHTML(invoiceBill(), res);
+  } catch (error) {
+    console.log('error in productPdfDownload', error)
+  }
+}
 
 module.exports = {
   addProduct,
@@ -135,4 +162,5 @@ module.exports = {
   deleteSelectedProduct,
   updateSelectedProduct,
   searchProduct,
+  productPdfDownload
 };

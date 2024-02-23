@@ -18,6 +18,7 @@ const HistorySchema = new mongoose.Schema(
             type: String,
             enum: [HISTORY_TYPE.ADD, HISTORY_TYPE.UPDATE, HISTORY_TYPE.DELETE],
         },
+        productCode: String,
         isActive: {
             type: Boolean,
             default: true
