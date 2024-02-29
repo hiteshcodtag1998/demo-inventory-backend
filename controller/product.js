@@ -1,6 +1,7 @@
 const { PrimaryProduct, SecondaryProduct } = require("../models/Product");
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const { PrimarySales, SecondarySales } = require("../models/sales");
+const { SecondaryBrand } = require("../models/brand");
 const { ROLES, HISTORY_TYPE } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
@@ -9,43 +10,104 @@ const { addHistoryData } = require("./history");
 const { v4: uuidv4 } = require('uuid');
 
 // Add Post
-const addProduct = (req, res) => {
-  const productCode = `${req.body.name?.toUpperCase()}-${uuidv4().split('-')[0]}`
+const addProduct = async (req, res) => {
+  try {
+    const products = req.body;
 
-  const addProduct = new SecondaryProduct({
-    userID: req.body.userId,
-    name: req.body.name,
-    manufacturer: req.body.manufacturer,
-    stock: 0,
-    description: req.body.description,
-    productCode
-  });
+    const productDocs = await Promise.all(
+      products.map(async (product) => {
+        const brand = await SecondaryBrand.findOne({ _id: product.brandId }).lean();
+        const productCode = `${(product.name?.toUpperCase() || '').substring(0, 3)}-${(brand.name?.toUpperCase() || '').substring(0, 3)}-${uuidv4().split('-')[0]}`;
 
-  addProduct
-    .save()
-    .then(async (result) => {
-      const historyPayload = {
-        productID: result._id,
-        description: `${result?.name || ""} product added`,
-        type: HISTORY_TYPE.ADD,
-        productCode
-      }
-      addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
-      await PrimaryProduct.insertMany([result]).catch(err => console.log('Err', err))
-      res.status(200).send(result);
-    })
-    .catch((err) => {
-      res.status(402).send(err);
-    });
+        const addProduct = new SecondaryProduct({
+          userID: product.userId,
+          name: product.name,
+          BrandID: product.brandId,
+          stock: 0,
+          description: product.description,
+          productCode
+        });
+
+        const savedProduct = await addProduct.save();
+
+        const historyPayload = {
+          productID: savedProduct._id,
+          description: `${savedProduct?.name || ""} product added`,
+          type: HISTORY_TYPE.ADD,
+          productCode
+        };
+
+        await addHistoryData(historyPayload, req?.headers?.role);
+        await PrimaryProduct.insertMany([savedProduct]);
+
+        return savedProduct;
+      })
+    );
+
+    res.status(200).send(productDocs);
+  } catch (err) {
+    console.error('Error adding products:', err);
+    res.status(402).send(err);
+  }
 };
 
-// Get All Products
+
+// // Get All Products
+// const getAllProducts = async (req, res) => {
+//   let findAllProducts;
+//   if (req?.headers?.role === ROLES.SUPER_ADMIN)
+//     findAllProducts = await PrimaryProduct.find().sort({ _id: -1 });
+//   else
+//     findAllProducts = await SecondaryProduct.find().sort({ _id: -1 }); // -1 for descending;
+//   res.json(findAllProducts);
+// };
+
+// Get All Purchase Data
 const getAllProducts = async (req, res) => {
+
   let findAllProducts;
+  const aggregationPiepline = [
+    {
+      $lookup: {
+        from: 'brands',
+        localField: 'BrandID',
+        foreignField: '_id',
+        as: 'BrandID'
+      }
+    },
+    {
+      $unwind: {
+        path: "$BrandID",
+        preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+      }
+    },
+    {
+      $match: {
+        $or: [
+          { BrandID: { $exists: true } }, // Include records with valid BrandID
+          { BrandID: undefined } // Include records where BrandID is undefined
+        ]
+      }
+    },
+    {
+      $project: {
+        userID: 1,
+        name: 1,
+        manufacturer: 1,
+        stock: 1,
+        description: 1,
+        productCode: 1,
+        BrandID: 1,
+        isActive: 1,
+        createdAt: 1,
+        updatedAt: 1
+      },
+    },
+    { $sort: { _id: -1 } }];
   if (req?.headers?.role === ROLES.SUPER_ADMIN)
-    findAllProducts = await PrimaryProduct.find().sort({ _id: -1 });
+    findAllProducts = await PrimaryProduct.aggregate(aggregationPiepline);
   else
-    findAllProducts = await SecondaryProduct.find().sort({ _id: -1 }); // -1 for descending;
+    findAllProducts = await SecondaryProduct.aggregate(aggregationPiepline); // -1 for descending;
   res.json(findAllProducts);
 };
 

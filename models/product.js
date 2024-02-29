@@ -13,7 +13,6 @@ const ProductSchema = new mongoose.Schema(
     },
     manufacturer: {
       type: String,
-      required: true,
     },
     stock: {
       type: Number,
@@ -21,6 +20,11 @@ const ProductSchema = new mongoose.Schema(
     },
     description: String,
     productCode: String,
+    BrandID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "brand",
+      required: true,
+    },
     isActive: {
       type: Boolean,
       default: true

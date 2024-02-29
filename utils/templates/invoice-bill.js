@@ -6,7 +6,7 @@ const invoiceBill = (data) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice</title>
+    <title>Purchase Note</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -43,18 +43,22 @@ const invoiceBill = (data) => {
     <h1>Invoice</h1>
     <div style="display: flex; justify-content: space-between">
         <div>
-            SupplierName: ${data?.supplierName || ""}
+            Supplier Name: ${data?.supplierName || ""}
         </div>
         <div>
-            StoreName: ${data?.storeName || ""}
+            Store Name: ${data?.storeName || ""}
         </div>
     </div>
-
+    <div style="display: flex; justify-content: space-between">
+        <div>
+            Brand Name: ${data?.brandName || ""}
+        </div>
+    </div>
     <div>
         <table>
             <thead>
                 <tr style="font-weight: bold">
-                    <th style="width: 40%">Item</th>
+                    <th style="width: 40%">Product Name</th>
                     <th style="width: 10%; text-align: right">Qty</th>
                 </tr>
             </thead>

@@ -118,7 +118,8 @@ const purchasePdfDownload = (req, res) => {
       supplierName: req.body?.SupplierName || "",
       storeName: req.body?.StoreName || "",
       qty: req.body?.QuantityPurchased || "",
-      productName: req.body?.ProductID?.name || ""
+      productName: req.body?.ProductID?.name || "",
+      brandName: req.body?.BrandID?.name || ""
     }
     // Usage
     generatePDFfromHTML(invoiceBill(payload), res);
