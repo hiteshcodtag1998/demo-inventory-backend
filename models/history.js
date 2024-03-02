@@ -16,7 +16,7 @@ const HistorySchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: [HISTORY_TYPE.ADD, HISTORY_TYPE.UPDATE, HISTORY_TYPE.DELETE],
+            enum: [HISTORY_TYPE.ADD, HISTORY_TYPE.UPDATE, HISTORY_TYPE.DELETE, HISTORY_TYPE.WRITE_OFF],
         },
         productCode: String,
         isActive: {

@@ -8,44 +8,54 @@ const { invoiceBill } = require("../utils/templates/invoice-bill");
 // Add Sales
 const addSales = async (req, res) => {
 
-  const payload = {
-    userID: req.body.userID,
-    ProductID: req.body.productID,
-    // StoreID: req.body.storeID,
-    StockSold: req.body.stockSold,
-    SaleDate: req.body.saleDate,
-    SupplierName: req.body.supplierName,
-    StoreName: req.body.storeName,
-    BrandID: req.body.brandID
-    // TotalSaleAmount: req.body.totalSaleAmount,
-  }
+  try {
+    const sales = req.body;
 
-  const isExistProduct = await SecondaryProduct.findById(req.body.productID)
+    const saleDocs = await Promise.all(
+      sales.map(async (sale) => {
 
-  if (isExistProduct) {
+        const isExistProduct = await SecondaryProduct.findById(sale.productID)
 
-    const addSale = new SecondarySales(payload);
-    addSale
-      .save()
-      .then(async (result) => {
-        await PrimarySales.insertMany([result]).catch(err => console.log('Err', err))
-        soldStock(req.body.productID, req.body.stockSold);
-        res.status(200).send(result);
+        const payload = {
+          userID: sale.userID,
+          ProductID: sale.productID,
+          // StoreID: sale.storeID,
+          StockSold: sale.stockSold,
+          SaleDate: sale.saleDate,
+          SupplierName: sale.supplierName,
+          StoreName: sale.storeName,
+          BrandID: sale.brandID,
+          referenceNo: sale?.referenceNo || ""
+          // TotalSaleAmount: sale.totalSaleAmount,
+        }
+
+        if (isExistProduct) {
+          const addSalesDetails = new SecondarySales(payload);
+
+          const salesProduct = await addSalesDetails.save();
+
+          await PrimarySales.insertMany([salesProduct]).catch(err => console.log('Err', err))
+          soldStock(sale.productID, sale.stockSold);
+
+          return salesProduct;
+        } else {
+          const addSale = new PrimarySales(payload);
+          addSale
+            .save()
+            .then(async (result) => {
+              soldStock(sale.productID, sale.stockSold);
+              return result
+            })
+            .catch((err) => {
+              res.status(402).send(err);
+            });
+        }
       })
-      .catch((err) => {
-        res.status(402).send(err);
-      });
-  } else {
-    const addSale = new PrimarySales(payload);
-    addSale
-      .save()
-      .then(async (result) => {
-        soldStock(req.body.productID, req.body.stockSold);
-        res.status(200).send(result);
-      })
-      .catch((err) => {
-        res.status(402).send(err);
-      });
+    );
+
+    res.status(200).send(saleDocs);
+  } catch (err) {
+    res.status(402).send(err);
   }
 };
 
@@ -86,11 +96,13 @@ const getSalesData = async (req, res) => {
         SupplierName: 1,
         StoreName: 1,
         TotalSaleAmount: 1,
+        referenceNo: 1,
         isActive: 1,
         createdAt: 1,
         updatedAt: 1
       }
-    }];
+    },
+    { $sort: { _id: -1 } }];
   if (req?.headers?.role === ROLES.SUPER_ADMIN)
     findAllSalesData = await PrimarySales.aggregate(aggregationPiepline);
   else
@@ -144,13 +156,13 @@ const getMonthlySales = async (req, res) => {
 
 const salePdfDownload = (req, res) => {
   try {
-    console.log('req', req.body)
-    // Usage
     const payload = {
+      title: "Sale Note",
       supplierName: req.body?.SupplierName || "",
       storeName: req.body?.StoreName || "",
       qty: req.body?.StockSold || "",
-      productName: req.body?.ProductID?.name || ""
+      productName: req.body?.ProductID?.name || "",
+      referenceNo: req.body?.referenceNo || ""
     }
     generatePDFfromHTML(invoiceBill(payload), res);
   } catch (error) {

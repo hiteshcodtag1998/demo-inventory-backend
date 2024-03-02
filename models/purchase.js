@@ -35,6 +35,9 @@ const PurchaseSchema = new mongoose.Schema(
     StoreName: {
       type: String,
     },
+    referenceNo: {
+      type: String
+    },
     isActive: {
       type: Boolean,
       default: true

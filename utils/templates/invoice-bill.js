@@ -6,7 +6,7 @@ const invoiceBill = (data) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Purchase Note</title>
+    <title>${data?.title || ""}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -34,13 +34,16 @@ const invoiceBill = (data) => {
         }
 
         div {
-            margin-top: 2em;
+            margin-top: 1em;
         }
     </style>
 </head>
 
 <body>
-    <h1>Invoice</h1>
+    <div style="display: flex; justify-content: space-between">
+        <h1>${data?.title || ""}</h1>
+        <span>${new Date().toLocaleDateString()}</span>
+    </div>
     <div style="display: flex; justify-content: space-between">
         <div>
             Supplier Name: ${data?.supplierName || ""}
@@ -53,6 +56,11 @@ const invoiceBill = (data) => {
         <div>
             Brand Name: ${data?.brandName || ""}
         </div>
+        ${data?.referenceNo ? `
+        <div>
+            Reference No: ${data?.referenceNo || ""}
+        </div>`
+            : ""}
     </div>
     <div>
         <table>

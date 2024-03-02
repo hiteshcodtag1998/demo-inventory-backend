@@ -1,13 +1,15 @@
+const { SecondaryProduct } = require("../models/Product");
 const { PrimaryWriteOff, SecondaryWriteOff } = require("../models/writeOff");
-const ROLES = require("../utils/constant");
+const { ROLES, HISTORY_TYPE } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
+const { addHistoryData } = require("./history");
 const purchaseStock = require("./purchaseStock");
 const soldStock = require("./soldStock");
 
 // Add Purchase Details
 const addWriteOff = (req, res) => {
-    const addPurchaseDetails = new SecondaryWriteOff({
+    const addWriteOffDetails = new SecondaryWriteOff({
         userID: req.body.userID,
         ProductID: req.body.productID,
         // StoreID: req.body.storeID,
@@ -15,12 +17,21 @@ const addWriteOff = (req, res) => {
         SaleDate: req.body.saleDate,
         SupplierName: req.body.supplierName,
         StoreName: req.body.storeName,
-        BrandID: req.body.brandID
+        BrandID: req.body.brandID,
+        reason: req.body.reason
     });
 
-    addPurchaseDetails
+    addWriteOffDetails
         .save()
         .then(async (result) => {
+            const product = await SecondaryProduct.findOne({ _id: req.body.productID }).lean();
+            const historyPayload = {
+                productID: result._id,
+                description: `${product?.name || ""} product writeOff`,
+                type: HISTORY_TYPE.WRITE_OFF,
+            };
+
+            await addHistoryData(historyPayload, req?.headers?.role);
             await PrimaryWriteOff.insertMany([result]).catch(err => console.log('Err', err))
             soldStock(req.body.productID, req.body.stockSold);
             res.status(200).send(result);
@@ -81,7 +92,8 @@ const getWriteOffData = async (req, res) => {
             createdAt: 1,
             updatedAt: 1
         }
-    }];
+    },
+    { $sort: { _id: -1 } }];
     if (req?.headers?.role === ROLES.SUPER_ADMIN)
         findAllWriteOffData = await PrimaryWriteOff.aggregate(aggregationPiepline);
     else
@@ -110,7 +122,6 @@ const getTotalPurchaseAmount = async (req, res) => {
 
 const writeOffPdfDownload = (req, res) => {
     try {
-        console.log('req', req.body)
         // Usage
         const payload = {
             supplierName: req.body?.SupplierName || "",

@@ -35,6 +35,9 @@ const WriteOffSchema = new mongoose.Schema(
         StoreName: {
             type: String,
         },
+        reason: {
+            type: String,
+        },
         isActive: {
             type: Boolean,
             default: true

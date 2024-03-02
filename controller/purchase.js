@@ -5,28 +5,38 @@ const { invoiceBill } = require("../utils/templates/invoice-bill");
 const purchaseStock = require("./purchaseStock");
 
 // Add Purchase Details
-const addPurchase = (req, res) => {
-  const addPurchaseDetails = new SecondaryPurchase({
-    userID: req.body.userID,
-    ProductID: req.body.productID,
-    QuantityPurchased: req.body.quantityPurchased,
-    PurchaseDate: req.body.purchaseDate,
-    // TotalPurchaseAmount: req.body.totalPurchaseAmount,
-    SupplierName: req.body.supplierName,
-    StoreName: req.body.storeName,
-    BrandID: req.body.brandID
-  });
+const addPurchase = async (req, res) => {
 
-  addPurchaseDetails
-    .save()
-    .then(async (result) => {
-      await PrimaryPurchase.insertMany([result]).catch(err => console.log('Err', err))
-      purchaseStock(req.body.productID, req.body.quantityPurchased);
-      res.status(200).send(result);
-    })
-    .catch((err) => {
-      res.status(402).send(err);
-    });
+  try {
+    const prchases = req.body;
+
+    const purchaseDocs = await Promise.all(
+      prchases.map(async (product) => {
+
+        const addPurchaseDetails = new SecondaryPurchase({
+          userID: product.userID,
+          ProductID: product.productID,
+          QuantityPurchased: product.quantityPurchased,
+          PurchaseDate: product.purchaseDate,
+          // TotalPurchaseAmount: product.totalPurchaseAmount,
+          SupplierName: product.supplierName,
+          StoreName: product.storeName,
+          BrandID: product.brandID,
+          referenceNo: product?.referenceNo || ""
+        });
+
+        const purchaseProduct = await addPurchaseDetails.save();
+
+        await PrimaryPurchase.insertMany([purchaseProduct]);
+        purchaseStock(product.productID, product.quantityPurchased);
+        return purchaseProduct;
+      })
+    );
+
+    res.status(200).send(purchaseDocs);
+  } catch (err) {
+    res.status(402).send(err);
+  }
 };
 
 // Get All Purchase Data
@@ -80,11 +90,13 @@ const getPurchaseData = async (req, res) => {
       StoreName: 1,
       BrandID: 1,
       TotalPurchaseAmount: 1,
+      referenceNo: 1,
       isActive: 1,
       createdAt: 1,
       updatedAt: 1
     }
-  }];
+  },
+  { $sort: { _id: -1 } }];
   if (req?.headers?.role === ROLES.SUPER_ADMIN)
     findAllPurchaseData = await PrimaryPurchase.aggregate(aggregationPiepline);
   else
@@ -113,13 +125,14 @@ const getTotalPurchaseAmount = async (req, res) => {
 
 const purchasePdfDownload = (req, res) => {
   try {
-    console.log('req', req.body)
     const payload = {
+      title: "Purchase Note",
       supplierName: req.body?.SupplierName || "",
       storeName: req.body?.StoreName || "",
       qty: req.body?.QuantityPurchased || "",
       productName: req.body?.ProductID?.name || "",
-      brandName: req.body?.BrandID?.name || ""
+      brandName: req.body?.BrandID?.name || "",
+      referenceNo: req.body?.referenceNo || ""
     }
     // Usage
     generatePDFfromHTML(invoiceBill(payload), res);
