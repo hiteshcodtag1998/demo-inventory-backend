@@ -74,6 +74,20 @@ const getSalesData = async (req, res) => {
     {
       $unwind: "$ProductID"
     },
+    {
+      $lookup: {
+        from: 'brands',
+        localField: 'BrandID',
+        foreignField: '_id',
+        as: 'BrandID'
+      }
+    },
+    {
+      $unwind: {
+        path: "$BrandID",
+        preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+      }
+    },
     // {
     //   $lookup: {
     //     from: 'stores',
@@ -90,6 +104,7 @@ const getSalesData = async (req, res) => {
         userID: 1,
         ProductID: 1,
         StoreID: 1,
+        BrandID: 1,
         QuantityPurchased: 1,
         StockSold: 1,
         SaleDate: 1,
@@ -161,6 +176,7 @@ const salePdfDownload = (req, res) => {
       supplierName: req.body?.SupplierName || "",
       storeName: req.body?.StoreName || "",
       qty: req.body?.StockSold || "",
+      brandName: req.body?.BrandID?.name || "",
       productName: req.body?.ProductID?.name || "",
       referenceNo: req.body?.referenceNo || ""
     }

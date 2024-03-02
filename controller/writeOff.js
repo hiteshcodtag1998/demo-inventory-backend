@@ -124,9 +124,11 @@ const writeOffPdfDownload = (req, res) => {
     try {
         // Usage
         const payload = {
+            title: "WriteOff Note",
             supplierName: req.body?.SupplierName || "",
             storeName: req.body?.StoreName || "",
             qty: req.body?.StockSold || "",
+            brandName: req.body?.BrandID?.name || "",
             productName: req.body?.ProductID?.name || ""
         }
         generatePDFfromHTML(invoiceBill(payload), res);
