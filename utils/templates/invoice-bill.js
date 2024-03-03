@@ -42,14 +42,14 @@ const invoiceBill = (data) => {
 <body>
     <div style="display: flex; justify-content: space-between">
         <h1>${data?.title || ""}</h1>
-        <span>${new Date().toLocaleDateString()}</span>
     </div>
+    <span>Date: ${new Date().toLocaleDateString()}</span>
     <div style="display: flex; justify-content: space-between">
         <div>
             Supplier Name: ${data?.supplierName || ""}
         </div>
         <div>
-            Store Name: ${data?.storeName || ""}
+            Warehouse Name: ${data?.storeName || ""}
         </div>
     </div>
     <div style="display: flex; justify-content: space-between">

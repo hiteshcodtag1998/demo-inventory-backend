@@ -27,6 +27,11 @@ const PurchaseSchema = new mongoose.Schema(
     SupplierName: {
       type: String,
     },
+    warehouseID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "warehouse",
+      required: true,
+    },
     BrandID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "brand",

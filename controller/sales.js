@@ -25,6 +25,7 @@ const addSales = async (req, res) => {
           SupplierName: sale.supplierName,
           StoreName: sale.storeName,
           BrandID: sale.brandID,
+          warehouseID: sale.warehouseID,
           referenceNo: sale?.referenceNo || ""
           // TotalSaleAmount: sale.totalSaleAmount,
         }
@@ -88,6 +89,20 @@ const getSalesData = async (req, res) => {
         preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
       }
     },
+    {
+      $lookup: {
+        from: 'warehouses',
+        localField: 'warehouseID',
+        foreignField: '_id',
+        as: 'warehouseID'
+      }
+    },
+    {
+      $unwind: {
+        path: "$warehouseID",
+        preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+      }
+    },
     // {
     //   $lookup: {
     //     from: 'stores',
@@ -108,6 +123,7 @@ const getSalesData = async (req, res) => {
         QuantityPurchased: 1,
         StockSold: 1,
         SaleDate: 1,
+        warehouseID: 1,
         SupplierName: 1,
         StoreName: 1,
         TotalSaleAmount: 1,
@@ -174,7 +190,7 @@ const salePdfDownload = (req, res) => {
     const payload = {
       title: "Sale Note",
       supplierName: req.body?.SupplierName || "",
-      storeName: req.body?.StoreName || "",
+      storeName: req.body?.warehouseID?.name || "",
       qty: req.body?.StockSold || "",
       brandName: req.body?.BrandID?.name || "",
       productName: req.body?.ProductID?.name || "",

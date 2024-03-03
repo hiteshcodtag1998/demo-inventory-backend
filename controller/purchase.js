@@ -22,6 +22,7 @@ const addPurchase = async (req, res) => {
           SupplierName: product.supplierName,
           StoreName: product.storeName,
           BrandID: product.brandID,
+          warehouseID: product.warehouseID,
           referenceNo: product?.referenceNo || ""
         });
 
@@ -60,6 +61,20 @@ const getPurchaseData = async (req, res) => {
   },
   {
     $lookup: {
+      from: 'warehouses',
+      localField: 'warehouseID',
+      foreignField: '_id',
+      as: 'warehouseID'
+    }
+  },
+  {
+    $unwind: {
+      path: "$warehouseID",
+      preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+    }
+  },
+  {
+    $lookup: {
       from: 'brands',
       localField: 'BrandID',
       foreignField: '_id',
@@ -84,6 +99,7 @@ const getPurchaseData = async (req, res) => {
     $project: {
       userID: 1,
       ProductID: 1,
+      warehouseID: 1,
       QuantityPurchased: 1,
       PurchaseDate: 1,
       SupplierName: 1,
@@ -128,7 +144,7 @@ const purchasePdfDownload = (req, res) => {
     const payload = {
       title: "Purchase Note",
       supplierName: req.body?.SupplierName || "",
-      storeName: req.body?.StoreName || "",
+      storeName: req.body?.warehouseID?.name || "",
       qty: req.body?.QuantityPurchased || "",
       productName: req.body?.ProductID?.name || "",
       brandName: req.body?.BrandID?.name || "",
