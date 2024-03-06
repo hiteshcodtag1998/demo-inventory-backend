@@ -1,20 +1,44 @@
 const { PrimaryTransferStock, SecondaryTransferStock } = require("../models/transferStock");
+const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
 const ROLES = require("../utils/constant");
 const purchaseStock = require("./purchaseStock");
 
 // Add TransferStock Details
-const addTransferStock = (req, res) => {
+const addTransferStock = async (req, res) => {
+
+    const existsAvailableStock = await SecondaryAvailableStock.findOne({
+        warehouseID: req.body.fromWarehouseID,
+        productID: req.body.productID,
+    }).lean();
+
+    if (!existsAvailableStock || existsAvailableStock?.stock) {
+
+    }
+
+    const availableStockPayload = {
+        warehouseID: product.warehouseID,
+        productID: product.productID,
+        stock: product.quantityPurchased
+    }
+
+    const stocksRes = await SecondaryAvailableStock.insertMany([availableStockPayload]);
+    await PrimaryAvailableStock.insertMany(stocksRes)
+
+
+
     const addPurchaseDetails = new SecondaryTransferStock({
         userID: req.body.userID,
-        ProductID: req.body.productID,
-        QuantityPurchased: req.body.quantityPurchased,
-        PurchaseDate: req.body.purchaseDate,
+        productID: req.body.productID,
+        quantity: req.body.quantityPurchased,
+        fromWarehouseID: req.body.fromWarehouseID,
+        toWarehouseID: req.body.toWarehouseID,
+        transferDate: req.body.purchaseDate,
+        brandID: req.body.brandID,
         // TotalPurchaseAmount: req.body.totalPurchaseAmount,
-        SupplierName: req.body.supplierName,
-        StoreName: req.body.storeName,
-        BrandID: req.body.brandID,
-        SendinLocation: req.body.sendingLocation,
-        ReceivingLocation: req.body.receivingLocation
+        // SupplierName: req.body.supplierName,
+        // StoreName: req.body.storeName,
+        // SendinLocation: req.body.sendingLocation,
+        // ReceivingLocation: req.body.receivingLocation
     });
 
     addPurchaseDetails
@@ -46,6 +70,28 @@ const getTransferStockData = async (req, res) => {
     },
     {
         $lookup: {
+            from: 'warehouses',
+            localField: 'fromWarehouseID',
+            foreignField: '_id',
+            as: 'fromWarehouseID'
+        }
+    },
+    {
+        $unwind: "$fromWarehouseID"
+    },
+    {
+        $lookup: {
+            from: 'warehouses',
+            localField: 'toWarehouseID',
+            foreignField: '_id',
+            as: 'toWarehouseID'
+        }
+    },
+    {
+        $unwind: "$toWarehouseID"
+    },
+    {
+        $lookup: {
             from: 'brands',
             localField: 'BrandID',
             foreignField: '_id',
@@ -69,15 +115,12 @@ const getTransferStockData = async (req, res) => {
     {
         $project: {
             userID: 1,
-            ProductID: 1,
-            QuantityPurchased: 1,
+            productID: 1,
+            quantity: 1,
             PurchaseDate: 1,
-            SupplierName: 1,
-            StoreName: 1,
-            BrandID: 1,
-            TotalPurchaseAmount: 1,
-            SendinLocation: 1,
-            ReceivingLocation: 1,
+            fromWarehouseID: 1,
+            toWarehouseID: 1,
+            brandID: 1,
             isActive: 1,
             createdAt: 1,
             updatedAt: 1

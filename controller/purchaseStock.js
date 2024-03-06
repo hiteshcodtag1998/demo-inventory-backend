@@ -1,16 +1,28 @@
-const { SecondaryProduct } = require("../models/Product");
+const { PrimaryProduct, SecondaryProduct } = require("../models/Product");
 
 const purchaseStock = async (productID, purchaseStockData) => {
   // Updating Purchase stock
   try {
-    console.log('--->productID, purchaseStockData', productID, purchaseStockData)
-    const myProductData = await SecondaryProduct.findOne({ _id: productID });
-    let myUpdatedStock = parseInt(myProductData.stock) + purchaseStockData;
+    // Secondary Product
+    const secondaryProductData = await SecondaryProduct.findOne({ _id: productID });
+    let secondaryUpdatedStock = Number(secondaryProductData.stock) + Number(purchaseStockData);
 
-    const PurchaseStock = await SecondaryProduct.findByIdAndUpdate(
+    await SecondaryProduct.findByIdAndUpdate(
       { _id: productID },
       {
-        stock: myUpdatedStock,
+        stock: secondaryUpdatedStock,
+      },
+      { new: true }
+    );
+
+    // Primary Product
+    const primaryProductData = await PrimaryProduct.findOne({ _id: productID });
+    let primaryUpdatedStock = Number(primaryProductData.stock) + Number(purchaseStockData);
+
+    await PrimaryProduct.findByIdAndUpdate(
+      { _id: productID },
+      {
+        stock: primaryUpdatedStock,
       },
       { new: true }
     );

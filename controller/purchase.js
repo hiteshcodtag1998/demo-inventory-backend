@@ -1,4 +1,5 @@
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
+const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
 const ROLES = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
@@ -28,8 +29,18 @@ const addPurchase = async (req, res) => {
 
         const purchaseProduct = await addPurchaseDetails.save();
 
+        const availableStockPayload = {
+          warehouseID: product.warehouseID,
+          productID: product.productID,
+          stock: product.quantityPurchased
+        }
+
+        const stocksRes = await SecondaryAvailableStock.insertMany([availableStockPayload]);
+        await PrimaryAvailableStock.insertMany(stocksRes)
+
         await PrimaryPurchase.insertMany([purchaseProduct]);
         purchaseStock(product.productID, product.quantityPurchased);
+
         return purchaseProduct;
       })
     );

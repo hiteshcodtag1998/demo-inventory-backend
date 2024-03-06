@@ -8,39 +8,49 @@ const TransferStockSchema = new mongoose.Schema(
             ref: "users",
             required: true,
         },
-        ProductID: {
+        productID: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "product",
             required: true,
         },
-        QuantityPurchased: {
+        quantity: {
             type: Number,
             required: true,
         },
-        PurchaseDate: {
+        transferDate: {
             type: String,
             required: true,
         },
-        TotalPurchaseAmount: {
-            type: Number,
+        fromWarehouseID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "warehouse",
+            required: true,
         },
-        SupplierName: {
-            type: String,
+        toWarehouseID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "warehouse",
+            required: true,
         },
-        BrandID: {
+        // TotalPurchaseAmount: {
+        //     type: Number,
+        // },
+        // SupplierName: {
+        //     type: String,
+        // },
+        brandID: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "brand",
             required: true,
         },
-        StoreName: {
-            type: String,
-        },
-        SendinLocation: {
-            type: String,
-        },
-        ReceivingLocation: {
-            type: String,
-        },
+        // StoreName: {
+        //     type: String,
+        // },
+        // SendinLocation: {
+        //     type: String,
+        // },
+        // ReceivingLocation: {
+        //     type: String,
+        // },
         isActive: {
             type: Boolean,
             default: true
