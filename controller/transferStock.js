@@ -2,55 +2,64 @@ const { PrimaryTransferStock, SecondaryTransferStock } = require("../models/tran
 const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
 const ROLES = require("../utils/constant");
 const purchaseStock = require("./purchaseStock");
+const { ObjectId } = require('mongodb');
 
 // Add TransferStock Details
 const addTransferStock = async (req, res) => {
+    try {
 
-    const existsAvailableStock = await SecondaryAvailableStock.findOne({
-        warehouseID: req.body.fromWarehouseID,
-        productID: req.body.productID,
-    }).lean();
+        const product = req.body;
 
-    if (!existsAvailableStock || existsAvailableStock?.stock) {
-
-    }
-
-    const availableStockPayload = {
-        warehouseID: product.warehouseID,
-        productID: product.productID,
-        stock: product.quantityPurchased
-    }
-
-    const stocksRes = await SecondaryAvailableStock.insertMany([availableStockPayload]);
-    await PrimaryAvailableStock.insertMany(stocksRes)
-
-
-
-    const addPurchaseDetails = new SecondaryTransferStock({
-        userID: req.body.userID,
-        productID: req.body.productID,
-        quantity: req.body.quantityPurchased,
-        fromWarehouseID: req.body.fromWarehouseID,
-        toWarehouseID: req.body.toWarehouseID,
-        transferDate: req.body.purchaseDate,
-        brandID: req.body.brandID,
-        // TotalPurchaseAmount: req.body.totalPurchaseAmount,
-        // SupplierName: req.body.supplierName,
-        // StoreName: req.body.storeName,
-        // SendinLocation: req.body.sendingLocation,
-        // ReceivingLocation: req.body.receivingLocation
-    });
-
-    addPurchaseDetails
-        .save()
-        .then(async (result) => {
-            await PrimaryTransferStock.insertMany([result]).catch(err => console.log('Err', err))
-            purchaseStock(req.body.productID, req.body.quantityPurchased);
-            res.status(200).send(result);
-        })
-        .catch((err) => {
-            res.status(402).send(err);
+        const existsAvailableStock = await SecondaryAvailableStock.findOne({
+            warehouseID: req.body.fromWarehouseID,
+            productID: req.body.productID,
         });
+
+        if (!existsAvailableStock || existsAvailableStock?.stock < product.quantityPurchased) {
+            throw new Error("Stock is not available")
+        }
+
+        const availableStockPayload = {
+            warehouseID: product.toWarehouseID,
+            productID: product.productID,
+            stock: product.quantityPurchased
+        }
+
+        const stocksRes = await SecondaryAvailableStock.insertMany([availableStockPayload]);
+        await PrimaryAvailableStock.insertMany(stocksRes)
+
+        await SecondaryAvailableStock.findOneAndUpdate(new ObjectId(existsAvailableStock?._id), { $inc: { stock: -product.quantityPurchased } })
+        await PrimaryAvailableStock.findOneAndUpdate(new ObjectId(existsAvailableStock?._id), { $inc: { stock: -product.quantityPurchased } })
+
+        const addPurchaseDetails = new SecondaryTransferStock({
+            userID: req.body.userID,
+            productID: req.body.productID,
+            quantity: req.body.quantityPurchased,
+            fromWarehouseID: req.body.fromWarehouseID,
+            toWarehouseID: req.body.toWarehouseID,
+            transferDate: req.body.purchaseDate,
+            brandID: req.body.brandID,
+            // TotalPurchaseAmount: req.body.totalPurchaseAmount,
+            // SupplierName: req.body.supplierName,
+            // StoreName: req.body.storeName,
+            // SendinLocation: req.body.sendingLocation,
+            // ReceivingLocation: req.body.receivingLocation
+        });
+
+        addPurchaseDetails
+            .save()
+            .then(async (result) => {
+                await PrimaryTransferStock.insertMany([result]).catch(err => console.log('Err', err))
+                // purchaseStock(req.body.productID, req.body.quantityPurchased);
+                res.status(200).send(result);
+            })
+            .catch((err) => {
+                res.status(402).send(err);
+            });
+    } catch (err) {
+        console.log('err', err)
+        res.status(500).send({ err, message: err?.message || "" });
+    }
 };
 
 // Get All TransferStock Product Data
@@ -60,13 +69,13 @@ const getTransferStockData = async (req, res) => {
     const aggregationPiepline = [{
         $lookup: {
             from: 'products',
-            localField: 'ProductID',
+            localField: 'productID',
             foreignField: '_id',
-            as: 'ProductID'
+            as: 'productID'
         }
     },
     {
-        $unwind: "$ProductID"
+        $unwind: "$productID"
     },
     {
         $lookup: {
@@ -93,14 +102,14 @@ const getTransferStockData = async (req, res) => {
     {
         $lookup: {
             from: 'brands',
-            localField: 'BrandID',
+            localField: 'brandID',
             foreignField: '_id',
-            as: 'BrandID'
+            as: 'brandID'
         }
     },
     {
         $unwind: {
-            path: "$BrandID",
+            path: "$brandID",
             preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
         }
     },
@@ -121,6 +130,7 @@ const getTransferStockData = async (req, res) => {
             fromWarehouseID: 1,
             toWarehouseID: 1,
             brandID: 1,
+            transferDate: 1,
             isActive: 1,
             createdAt: 1,
             updatedAt: 1

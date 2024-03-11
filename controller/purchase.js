@@ -29,6 +29,7 @@ const addPurchase = async (req, res) => {
 
         const purchaseProduct = await addPurchaseDetails.save();
 
+        // Start update in available stock
         const availableStockPayload = {
           warehouseID: product.warehouseID,
           productID: product.productID,
@@ -37,6 +38,7 @@ const addPurchase = async (req, res) => {
 
         const stocksRes = await SecondaryAvailableStock.insertMany([availableStockPayload]);
         await PrimaryAvailableStock.insertMany(stocksRes)
+        // End update in available stock
 
         await PrimaryPurchase.insertMany([purchaseProduct]);
         purchaseStock(product.productID, product.quantityPurchased);

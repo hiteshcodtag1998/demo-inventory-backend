@@ -4,6 +4,8 @@ const ROLES = require("../utils/constant");
 const { SecondaryProduct } = require("../models/Product");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
+const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/availableStock");
+const { ObjectId } = require('mongodb');
 
 // Add Sales
 const addSales = async (req, res) => {
@@ -13,6 +15,15 @@ const addSales = async (req, res) => {
 
     const saleDocs = await Promise.all(
       sales.map(async (sale) => {
+
+        const existsAvailableStock = await SecondaryAvailableStock.findOne({
+          warehouseID: sale.warehouseID,
+          productID: sale.productID,
+        });
+
+        if (!existsAvailableStock || existsAvailableStock?.stock < sale.stockSold) {
+          throw new Error("Stock is not available")
+        }
 
         const isExistProduct = await SecondaryProduct.findById(sale.productID)
 
@@ -35,6 +46,17 @@ const addSales = async (req, res) => {
 
           const salesProduct = await addSalesDetails.save();
 
+          // Start update in available stock
+          const availableStockPayload = {
+            warehouseID: sale.warehouseID,
+            productID: sale.productID,
+            stock: existsAvailableStock?.stock - Number(sale.stockSold)
+          }
+
+          await SecondaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload);
+          await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
+          // End update in available stock
+
           await PrimarySales.insertMany([salesProduct]).catch(err => console.log('Err', err))
           soldStock(sale.productID, sale.stockSold);
 
@@ -56,7 +78,7 @@ const addSales = async (req, res) => {
 
     res.status(200).send(saleDocs);
   } catch (err) {
-    res.status(402).send(err);
+    res.status(500).send({ err, message: err?.message || "" });
   }
 };
 
