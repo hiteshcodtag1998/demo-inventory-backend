@@ -6,8 +6,10 @@ const { ROLES, HISTORY_TYPE } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { addHistoryData } = require("./history");
+const { ObjectId } = require('mongodb');
 
 const { v4: uuidv4 } = require('uuid');
+const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
 
 // Add Post
 const addProduct = async (req, res) => {
@@ -208,10 +210,81 @@ const searchProduct = async (req, res) => {
   res.json(findAllProducts);
 };
 
+// Search Products
+const searchProductByWarehouse = async (req, res) => {
+  const searchTerm = req.query.selectWarehouse;
+
+  let findAllProducts;
+  if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    findAllProducts = await PrimaryAvailableStock
+      .aggregate([
+        {
+          $lookup: {
+            from: 'product',
+            localField: 'productID',
+            foreignField: '_id',
+            as: 'productID'
+          }
+        },
+        {
+          $unwind: {
+            path: "$productID",
+            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+          }
+        },
+        {
+          $match: {
+            warehouseID: new ObjectId(searchTerm)
+          }
+        },
+      ])
+
+  else
+    findAllProducts = await SecondaryAvailableStock
+      .aggregate([
+        {
+          $match: {
+            warehouseID: new ObjectId(searchTerm)
+          }
+        },
+        {
+          $lookup: {
+            from: 'products',
+            localField: 'productID',
+            foreignField: '_id',
+            as: 'productID'
+          }
+        },
+        {
+          $unwind: {
+            path: "$productID",
+            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+          }
+        },
+        {
+          $lookup: {
+            from: 'brands',
+            localField: 'productID.BrandID',
+            foreignField: '_id',
+            as: 'productID.BrandID'
+          }
+        },
+        {
+          $unwind: {
+            path: "$productID.BrandID",
+            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+          }
+        },
+
+      ])
+  res.json(findAllProducts);
+};
+
 module.exports = {
   addProduct,
   getAllProducts,
   deleteSelectedProduct,
   updateSelectedProduct,
-  searchProduct
+  searchProduct,
+  searchProductByWarehouse
 };
