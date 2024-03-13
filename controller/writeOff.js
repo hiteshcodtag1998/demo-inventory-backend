@@ -6,39 +6,80 @@ const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { addHistoryData } = require("./history");
 const purchaseStock = require("./purchaseStock");
 const soldStock = require("./soldStock");
+const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/availableStock");
+const { ObjectId } = require('mongodb');
 
 // Add Purchase Details
-const addWriteOff = (req, res) => {
-    const addWriteOffDetails = new SecondaryWriteOff({
-        userID: req.body.userID,
-        ProductID: req.body.productID,
-        // StoreID: req.body.storeID,
-        StockSold: req.body.stockSold,
-        SaleDate: req.body.saleDate,
-        SupplierName: req.body.supplierName,
-        StoreName: req.body.storeName,
-        BrandID: req.body.brandID,
-        reason: req.body.reason
-    });
+const addWriteOff = async (req, res) => {
 
-    addWriteOffDetails
-        .save()
-        .then(async (result) => {
-            const product = await SecondaryProduct.findOne({ _id: req.body.productID }).lean();
-            const historyPayload = {
-                productID: result._id,
-                description: `${product?.name || ""} product writeOff`,
-                type: HISTORY_TYPE.WRITE_OFF,
-            };
+    try {
+        const sales = req.body;
+        const saleDocs = await Promise.all(
+            sales.map(async (sale) => {
 
-            await addHistoryData(historyPayload, req?.headers?.role);
-            await PrimaryWriteOff.insertMany([result]).catch(err => console.log('Err', err))
-            soldStock(req.body.productID, req.body.stockSold);
-            res.status(200).send(result);
-        })
-        .catch((err) => {
-            res.status(402).send(err);
-        });
+                const existsAvailableStock = await SecondaryAvailableStock.findOne({
+                    warehouseID: sale.warehouseID,
+                    productID: sale.productID,
+                });
+
+                if (!existsAvailableStock || existsAvailableStock?.stock < sale.stockSold) {
+                    throw new Error("Stock is not available")
+                }
+
+                const isExistProduct = await SecondaryProduct.findById(sale.productID)
+
+                const payload = {
+                    userID: sale.userID,
+                    ProductID: sale.productID,
+                    // StoreID: sale.storeID,
+                    StockSold: sale.stockSold,
+                    SaleDate: sale.saleDate,
+                    SupplierName: sale.supplierName,
+                    StoreName: sale.storeName,
+                    BrandID: sale.brandID,
+                    warehouseID: sale.warehouseID,
+                    referenceNo: sale?.referenceNo || ""
+                    // TotalSaleAmount: sale.totalSaleAmount,
+                }
+
+                if (isExistProduct) {
+                    const addSalesDetails = new SecondaryWriteOff(payload);
+
+                    const salesProduct = await addSalesDetails.save();
+
+                    // Start update in available stock
+                    const availableStockPayload = {
+                        warehouseID: sale.warehouseID,
+                        productID: sale.productID,
+                        stock: existsAvailableStock?.stock - Number(sale.stockSold)
+                    }
+
+                    await SecondaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload);
+                    await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
+                    // End update in available stock
+
+                    await PrimaryWriteOff.insertMany([salesProduct]).catch(err => console.log('Err', err))
+                    soldStock(sale.productID, sale.stockSold);
+
+                    return salesProduct;
+                } else {
+                    const addSale = new PrimaryWriteOff(payload);
+                    addSale
+                        .save()
+                        .then(async (result) => {
+                            soldStock(sale.productID, sale.stockSold);
+                            return result
+                        })
+                        .catch((err) => {
+                            res.status(402).send(err);
+                        });
+                }
+            })
+        );
+        res.status(200).send(saleDocs);
+    } catch (err) {
+        res.status(500).send({ err, message: err?.message || "" });
+    }
 };
 
 // Get All WriteOff Product Data
@@ -71,6 +112,20 @@ const getWriteOffData = async (req, res) => {
         }
     },
     {
+        $lookup: {
+            from: 'warehouses',
+            localField: 'warehouseID',
+            foreignField: '_id',
+            as: 'warehouseID'
+        }
+    },
+    {
+        $unwind: {
+            path: "$warehouseID",
+            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+        }
+    },
+    {
         $match: {
             $or: [
                 { BrandID: { $exists: true } }, // Include records with valid BrandID
@@ -88,6 +143,7 @@ const getWriteOffData = async (req, res) => {
             StoreName: 1,
             BrandID: 1,
             TotalSaleAmount: 1,
+            warehouseID: 1,
             isActive: 1,
             createdAt: 1,
             updatedAt: 1
@@ -126,7 +182,7 @@ const writeOffPdfDownload = (req, res) => {
         const payload = {
             title: "WriteOff Note",
             supplierName: req.body?.SupplierName || "",
-            storeName: req.body?.StoreName || "",
+            storeName: req.body?.warehouseID?.name || "",
             qty: req.body?.StockSold || "",
             brandName: req.body?.BrandID?.name || "",
             productName: req.body?.ProductID?.name || ""

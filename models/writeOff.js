@@ -32,6 +32,11 @@ const WriteOffSchema = new mongoose.Schema(
             ref: "brand",
             required: true,
         },
+        warehouseID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "warehouse",
+            required: true,
+        },
         StoreName: {
             type: String,
         },
