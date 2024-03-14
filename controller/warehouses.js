@@ -19,6 +19,32 @@ const addWarehouse = async (req, res) => {
         });
 };
 
+// Update Selected Warehouse
+const updateSelectedWarehouse = async (req, res) => {
+    try {
+        const updatedResult = await SecondaryWarehouse.findByIdAndUpdate(
+            { _id: req.body.warehouseID },
+            {
+                name: req.body.name,
+                category: req.body.category,
+                address: req.body.address,
+                city: req.body.city,
+            },
+            { new: true }
+        );
+
+        await PrimaryWarehouse.findByIdAndUpdate({ _id: req.body.warehouseID }, {
+            name: req.body.name,
+            category: req.body.category,
+            address: req.body.address,
+            city: req.body.city,
+        })
+        res.json(updatedResult);
+    } catch (error) {
+        res.status(402).send("Error");
+    }
+};
+
 // Get All Stores
 const getAllWarehouses = async (req, res) => {
     let findAllWarehouses;
@@ -30,4 +56,4 @@ const getAllWarehouses = async (req, res) => {
 
 };
 
-module.exports = { addWarehouse, getAllWarehouses };
+module.exports = { addWarehouse, getAllWarehouses, updateSelectedWarehouse };
