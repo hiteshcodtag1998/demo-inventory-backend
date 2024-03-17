@@ -13,7 +13,7 @@ const writeOffRoute = require("./router/writeOff")
 const transferStockRoute = require("./router/transferStock")
 const cors = require("cors");
 const { PrimaryUser, SecondaryUser } = require("./models/users");
-const Product = require("./models/Product");
+const Product = require("./models/product");
 
 const app = express();
 const PORT = 4000;
