@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 // const uri = "mongodb://localhost:27017/demo-inventory?readPreference=primary&appname=MongoDB%20Compass%20Community&ssl=false";
 
 const MONGO_URI =
-    'mongodb://localhost:27017/demo-inventory-primary?readPreference=primary&appname=MongoDB%20Compass%20Community&ssl=false'
+    'mongodb+srv://pateldhyey0101:NyxDeivide8hHOTb@inventorydemo.idu7kr5.mongodb.net/demo-inventory-primary'
 const MOBILE_URI =
-    'mongodb://localhost:27017/demo-inventory-secondary?readPreference=primary&appname=MongoDB%20Compass%20Community&ssl=false'
+    'mongodb+srv://pateldhyey0101:NyxDeivide8hHOTb@inventorydemo.idu7kr5.mongodb.net/demo-inventory-secondary'
 
 const main = () => {
     try {
