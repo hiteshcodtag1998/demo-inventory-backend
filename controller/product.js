@@ -1,4 +1,4 @@
-const { PrimaryProduct, SecondaryProduct } = require("../models/Product");
+const { PrimaryProduct, SecondaryProduct } = require("../models/product");
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const { SecondaryBrand } = require("../models/brand");
