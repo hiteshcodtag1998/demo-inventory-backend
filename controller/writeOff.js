@@ -1,4 +1,4 @@
-const { SecondaryProduct } = require("../models/Product");
+const { SecondaryProduct } = require("../models/product");
 const { PrimaryWriteOff, SecondaryWriteOff } = require("../models/writeOff");
 const { ROLES, HISTORY_TYPE } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");

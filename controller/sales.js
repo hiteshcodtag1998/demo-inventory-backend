@@ -1,7 +1,7 @@
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const soldStock = require("../controller/soldStock");
 const ROLES = require("../utils/constant");
-const { SecondaryProduct } = require("../models/Product");
+const { SecondaryProduct } = require("../models/product");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/availableStock");

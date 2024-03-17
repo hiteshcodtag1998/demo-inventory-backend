@@ -1,5 +1,5 @@
 const Sales = require("../models/sales");
-const { SecondaryProduct } = require("../models/Product");
+const { SecondaryProduct } = require("../models/product");
 
 
 const soldStock = async (productID, stockSoldData) => {

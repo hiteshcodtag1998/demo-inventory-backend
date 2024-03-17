@@ -1,4 +1,4 @@
-const { PrimaryProduct, SecondaryProduct } = require("../models/Product");
+const { PrimaryProduct, SecondaryProduct } = require("../models/product");
 
 const purchaseStock = async (productID, purchaseStockData) => {
   // Updating Purchase stock
