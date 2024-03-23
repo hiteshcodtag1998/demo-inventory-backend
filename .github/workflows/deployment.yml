@@ -1,0 +1,116 @@
+name: Deploy Node.js App to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - master # Or any branch you want to deploy from
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '20' # Use the Node version your app requires
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Copy files to Lightsail
+      uses: appleboy/scp-action@master
+      with:
+        host: 65.1.9.112
+        username: "Ubuntu"
+        key: "-----BEGIN OPENSSH PRIVATE KEY-----
+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
+-----END OPENSSH PRIVATE KEY-----"
+        port: 22
+        source: "."
+        target: "/home/ubuntu/inventory-demo/demo-inventory-backend"
+
+    - name: Restart Node.js app
+      uses: appleboy/ssh-action@master
+      with:
+        host: 65.1.9.112
+        username: "Ubuntu"
+        key: "-----BEGIN OPENSSH PRIVATE KEY-----
+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
+-----END OPENSSH PRIVATE KEY-----"
+        port: 22
+        script: |
+          cd /home/ubuntu/inventory-demo/demo-inventory-backend
+          npm install --production
+          pm2 restart all # or your specific start command
