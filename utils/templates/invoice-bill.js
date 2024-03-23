@@ -45,9 +45,9 @@ const invoiceBill = (data) => {
     </div>
     <span>Date: ${new Date().toLocaleDateString()}</span>
     <div style="display: flex; justify-content: space-between">
-        <div>
-            Supplier Name: ${data?.supplierName || ""}
-        </div>
+        ${data?.supplierName ? `<div>
+            Supplier Name: ${data.supplierName}
+        </div></>` : ""}
         <div>
             Warehouse Name: ${data?.storeName || ""}
         </div>
@@ -79,6 +79,11 @@ const invoiceBill = (data) => {
 
             </tbody>
         </table>
+    </div>
+    <div style="display: flex; justify-content: space-between">
+        ${data?.reason ? `<div>
+            Reason: ${data.reason}
+        </div></>` : ""}
     </div>
 </body>
 

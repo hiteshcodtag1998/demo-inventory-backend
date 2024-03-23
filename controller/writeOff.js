@@ -38,7 +38,8 @@ const addWriteOff = async (req, res) => {
                     StoreName: sale.storeName,
                     BrandID: sale.brandID,
                     warehouseID: sale.warehouseID,
-                    referenceNo: sale?.referenceNo || ""
+                    referenceNo: sale?.referenceNo || "",
+                    reason: sale?.reason || ""
                     // TotalSaleAmount: sale.totalSaleAmount,
                 }
 
@@ -142,6 +143,7 @@ const getWriteOffData = async (req, res) => {
             SupplierName: 1,
             StoreName: 1,
             BrandID: 1,
+            reason: 1,
             TotalSaleAmount: 1,
             warehouseID: 1,
             isActive: 1,
@@ -181,11 +183,11 @@ const writeOffPdfDownload = (req, res) => {
         // Usage
         const payload = {
             title: "WriteOff Note",
-            supplierName: req.body?.SupplierName || "",
             storeName: req.body?.warehouseID?.name || "",
             qty: req.body?.StockSold || "",
             brandName: req.body?.BrandID?.name || "",
-            productName: req.body?.ProductID?.name || ""
+            productName: req.body?.ProductID?.name || "",
+            reason: req.body?.reason
         }
         generatePDFfromHTML(invoiceBill(payload), res);
     } catch (error) {

@@ -1,0 +1,42 @@
+name: Deploy Node.js App to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - master # Or any branch you want to deploy from
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '20' # Use the Node version your app requires
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Copy files to Lightsail
+      uses: appleboy/scp-action@master
+      with:
+        host: 65.1.9.112
+        username: "Ubuntu"
+        key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClWJ/436ux4vfTsV/7Mv0YSCaiQsYoay9DLNnKVfsDVgtpgWEtseqt19FvuNTA1rQRsREQQHi+32/Izavhsgh8cDL7gf+9CZ2LALIxNM8F5gCnEWCzUC8H9eQWAb9oJpw+kQfpguJPiYHiy/726B1NYxAHuOaQVCG7SaR5kP04L2Mk8sx3bxhYg5ht/tiXG3EArz9eJv2SmjYsCzgPRg3ejbKLYhMMYJPpyyojuL5YNmYKYXWtUVf6CK8t61Qky/K41PK72ldjCu02tnksk0Fx9EPNBhVirNz+x5rBZ5iGdGGOuYMHeIWeUUNbhGrrvCmynzVt1S8iDMOsujsihbQjUZGo8OeVVL65OaAP6gR19psagE+5K0X40tj54qUfChjBSnJyCeYWBo8mgzBdOrDOq1w2NQk4jNxuFtjtXvbfoQo4qg9VQqzVYZtIGN/bsy9nWkwEvXeq6C+p3rT/puLBWOVC1UEaYJK7ys8Sdiex6Xv8kRdy0kkaMEjHXEnxzyM= ubuntu@ip-172-26-5-243"
+        port: 22
+        source: "."
+        target: "/home/ubuntu/inventory-demo/demo-inventory-backend"
+
+    - name: Restart Node.js app
+      uses: appleboy/ssh-action@master
+      with:
+        host: 65.1.9.112
+        username: "Ubuntu"
+        key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQClWJ/436ux4vfTsV/7Mv0YSCaiQsYoay9DLNnKVfsDVgtpgWEtseqt19FvuNTA1rQRsREQQHi+32/Izavhsgh8cDL7gf+9CZ2LALIxNM8F5gCnEWCzUC8H9eQWAb9oJpw+kQfpguJPiYHiy/726B1NYxAHuOaQVCG7SaR5kP04L2Mk8sx3bxhYg5ht/tiXG3EArz9eJv2SmjYsCzgPRg3ejbKLYhMMYJPpyyojuL5YNmYKYXWtUVf6CK8t61Qky/K41PK72ldjCu02tnksk0Fx9EPNBhVirNz+x5rBZ5iGdGGOuYMHeIWeUUNbhGrrvCmynzVt1S8iDMOsujsihbQjUZGo8OeVVL65OaAP6gR19psagE+5K0X40tj54qUfChjBSnJyCeYWBo8mgzBdOrDOq1w2NQk4jNxuFtjtXvbfoQo4qg9VQqzVYZtIGN/bsy9nWkwEvXeq6C+p3rT/puLBWOVC1UEaYJK7ys8Sdiex6Xv8kRdy0kkaMEjHXEnxzyM= ubuntu@ip-172-26-5-243"
+        port: 22
+        script: |
+          cd /home/ubuntu/inventory-demo/demo-inventory-backend
+          npm install --production
+          pm2 restart all # or your specific start command
