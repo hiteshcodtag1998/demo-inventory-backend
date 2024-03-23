@@ -19,6 +19,10 @@ const HistorySchema = new mongoose.Schema(
             enum: [HISTORY_TYPE.ADD, HISTORY_TYPE.UPDATE, HISTORY_TYPE.DELETE, HISTORY_TYPE.WRITE_OFF],
         },
         productCode: String,
+        purchaseID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'purchases',
+        },
         isActive: {
             type: Boolean,
             default: true

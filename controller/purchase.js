@@ -4,6 +4,8 @@ const ROLES = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const purchaseStock = require("./purchaseStock");
+const { addHistoryData } = require("./history");
+const { SecondaryProduct } = require("../models/product");
 
 // Add Purchase Details
 const addPurchase = async (req, res) => {
@@ -28,6 +30,18 @@ const addPurchase = async (req, res) => {
         });
 
         const purchaseProduct = await addPurchaseDetails.save();
+
+        // Start History Data
+        const productInfo = await SecondaryProduct.findOne({ _id: purchaseProduct.ProductID })
+        const historyPayload = {
+          productID: purchaseProduct.ProductID,
+          purchaseID: purchaseProduct._id,
+          description: `${productInfo?.name || ""} product purchased`,
+          type: HISTORY_TYPE.ADD,
+        };
+
+        await addHistoryData(historyPayload, req?.headers?.role);
+        // End History Data
 
         // Start update in available stock
         const availableStockPayload = {
@@ -152,6 +166,69 @@ const getTotalPurchaseAmount = async (req, res) => {
   res.json({ totalPurchaseAmount });
 };
 
+// Update Selected Product
+const updateSelectedPurchaase = async (req, res) => {
+  try {
+    const updatedResult = await SecondaryPurchase.findByIdAndUpdate(
+      { _id: req.body.purchaseID },
+      {
+        ProductID: req.body.productID,
+        QuantityPurchased: req.body.quantityPurchased,
+        PurchaseDate: req.body.purchaseDate,
+        SupplierName: req.body.supplierName,
+        StoreName: req.body.storeName,
+        BrandID: req.body.brandID,
+        warehouseID: req.body.warehouseID,
+        referenceNo: req.body?.referenceNo || ""
+      },
+      { new: true }
+    );
+
+    // Start History Data
+    const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
+    const historyPayload = {
+      productID: updatedResult.ProductID,
+      purchaseID: updatedResult._id,
+      description: `${productInfo?.name || ""} product purchase updated`,
+      type: ROLES.HISTORY_TYPE.UPDATE,
+    };
+
+    await addHistoryData(historyPayload, req?.headers?.role);
+    // End History Data
+
+    // Start update in available stock
+    const existsAvailableStock = await SecondaryAvailableStock.findOne({
+      warehouseID: req.body.warehouseID,
+      productID: req.body.productID,
+    });
+
+    const availableStockPayload = {
+      warehouseID: req.body.warehouseID,
+      productID: req.body.productID,
+      stock: req.body.quantityPurchased
+    }
+
+    await SecondaryAvailableStock.findByIdAndUpdate(
+      { _id: existsAvailableStock._id }, availableStockPayload)
+    await PrimaryAvailableStock.findByIdAndUpdate(
+      { _id: existsAvailableStock._id }, availableStockPayload)
+
+    purchaseStock(req.body.productID, req.body.quantityPurchased);
+
+    // End update in available stock
+
+    await PrimaryPurchase.findByIdAndUpdate({ _id: req.body.productID }, {
+      name: req.body.name,
+      manufacturer: req.body.manufacturer,
+      description: req.body.description,
+    })
+    res.json(updatedResult);
+  } catch (error) {
+    console.log('error', error)
+    res.status(402).send("Error");
+  }
+};
+
 const purchasePdfDownload = (req, res) => {
   try {
     const payload = {
@@ -170,4 +247,4 @@ const purchasePdfDownload = (req, res) => {
   }
 }
 
-module.exports = { addPurchase, getPurchaseData, getTotalPurchaseAmount, purchasePdfDownload };
+module.exports = { addPurchase, getPurchaseData, getTotalPurchaseAmount, purchasePdfDownload, updateSelectedPurchaase };
