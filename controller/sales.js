@@ -1,11 +1,12 @@
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const soldStock = require("../controller/soldStock");
-const ROLES = require("../utils/constant");
+const { ROLES, HISTORY_TYPE } = require("../utils/constant");
 const { SecondaryProduct } = require("../models/product");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/availableStock");
 const { ObjectId } = require('mongodb');
+const { addHistoryData } = require("./history");
 
 // Add Sales
 const addSales = async (req, res) => {
@@ -45,6 +46,18 @@ const addSales = async (req, res) => {
           const addSalesDetails = new SecondarySales(payload);
 
           const salesProduct = await addSalesDetails.save();
+
+          // Start History Data
+          const productInfo = await SecondaryProduct.findOne({ _id: salesProduct.ProductID })
+          const historyPayload = {
+            productID: salesProduct.ProductID,
+            saleID: salesProduct._id,
+            description: `${productInfo?.name || ""} product sold`,
+            type: HISTORY_TYPE.ADD,
+          };
+
+          await addHistoryData(historyPayload, req?.headers?.role);
+          // End History Data
 
           // Start update in available stock
           const availableStockPayload = {
@@ -224,6 +237,72 @@ const salePdfDownload = (req, res) => {
   }
 }
 
+// Update Selected Sale
+const updateSelectedSale = async (req, res) => {
+  try {
+    const existsAvailableStock = await SecondaryAvailableStock.findOne({
+      warehouseID: req.body.warehouseID,
+      productID: req.body.productID,
+    });
 
+    if (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold) {
+      throw new Error("Stock is not available")
+    }
 
-module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount, salePdfDownload };
+    const updatedResult = await SecondarySales.findByIdAndUpdate(
+      { _id: req.body.saleID },
+      {
+        userID: req.body.userID,
+        ProductID: req.body.productID,
+        StockSold: req.body.stockSold,
+        SaleDate: req.body.saleDate,
+        SupplierName: req.body.supplierName,
+        StoreName: req.body.storeName,
+        BrandID: req.body.brandID,
+        warehouseID: req.body.warehouseID,
+        referenceNo: req.body?.referenceNo || ""
+      },
+      { new: true }
+    );
+
+    // Start History Data
+    const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
+    const historyPayload = {
+      productID: updatedResult.ProductID,
+      saleID: updatedResult._id,
+      description: `${productInfo?.name || ""} product sales updated`,
+      type: HISTORY_TYPE.UPDATE,
+    };
+
+    await addHistoryData(historyPayload, req?.headers?.role);
+    // End History Data
+
+    // Start update in available stock
+
+    const availableStockPayload = {
+      warehouseID: req.body.warehouseID,
+      productID: req.body.productID,
+      stock: req.body.stockSold
+    }
+
+    await SecondaryAvailableStock.findByIdAndUpdate(
+      { _id: existsAvailableStock._id }, availableStockPayload)
+    await PrimaryAvailableStock.findByIdAndUpdate(
+      { _id: existsAvailableStock._id }, availableStockPayload)
+
+    soldStock(req.body.productID, req.body.stockSold);
+
+    // End update in available stock
+
+    await PrimarySales.findByIdAndUpdate({ _id: req.body.saleID }, {
+      StockSold: req.body.stockSold,
+      SaleDate: req.body.saleDate,
+      referenceNo: req.body?.referenceNo || ""
+    })
+    res.json(updatedResult);
+  } catch (error) {
+    res.status(500).send({ error, message: error?.message || "" });
+  }
+};
+
+module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount, salePdfDownload, updateSelectedSale };

@@ -1,6 +1,6 @@
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
-const ROLES = require("../utils/constant");
+const { ROLES, HISTORY_TYPE } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const purchaseStock = require("./purchaseStock");
@@ -39,6 +39,7 @@ const addPurchase = async (req, res) => {
           description: `${productInfo?.name || ""} product purchased`,
           type: HISTORY_TYPE.ADD,
         };
+
 
         await addHistoryData(historyPayload, req?.headers?.role);
         // End History Data
@@ -166,7 +167,7 @@ const getTotalPurchaseAmount = async (req, res) => {
   res.json({ totalPurchaseAmount });
 };
 
-// Update Selected Product
+// Update Selected Purchase
 const updateSelectedPurchaase = async (req, res) => {
   try {
     const updatedResult = await SecondaryPurchase.findByIdAndUpdate(
@@ -190,7 +191,7 @@ const updateSelectedPurchaase = async (req, res) => {
       productID: updatedResult.ProductID,
       purchaseID: updatedResult._id,
       description: `${productInfo?.name || ""} product purchase updated`,
-      type: ROLES.HISTORY_TYPE.UPDATE,
+      type: HISTORY_TYPE.UPDATE,
     };
 
     await addHistoryData(historyPayload, req?.headers?.role);
@@ -213,19 +214,19 @@ const updateSelectedPurchaase = async (req, res) => {
     await PrimaryAvailableStock.findByIdAndUpdate(
       { _id: existsAvailableStock._id }, availableStockPayload)
 
-    purchaseStock(req.body.productID, req.body.quantityPurchased);
+    purchaseStock(req.body.productID, req.body.quantityPurchased, true);
 
     // End update in available stock
 
-    await PrimaryPurchase.findByIdAndUpdate({ _id: req.body.productID }, {
-      name: req.body.name,
-      manufacturer: req.body.manufacturer,
-      description: req.body.description,
+    await PrimaryPurchase.findByIdAndUpdate({ _id: req.body.purchaseID }, {
+      QuantityPurchased: req.body.quantityPurchased,
+      PurchaseDate: req.body.purchaseDate,
+      SupplierName: req.body.supplierName,
+      referenceNo: req.body?.referenceNo || ""
     })
     res.json(updatedResult);
   } catch (error) {
-    console.log('error', error)
-    res.status(402).send("Error");
+    res.status(500).send({ error, message: error?.message || "" });
   }
 };
 

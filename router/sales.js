@@ -14,6 +14,9 @@ app.get("/get/totalsaleamount", sales.getTotalSalesAmount);
 
 app.post("/sale-pdf-download", sales.salePdfDownload)
 
+// Update Selected sale
+app.post("/update", sales.updateSelectedSale);
+
 module.exports = app;
 
 

@@ -10,5 +10,8 @@ app.get("/get", writeOff.getWriteOffData);
 
 app.post("/writeOff-pdf-download", writeOff.writeOffPdfDownload)
 
+// Update Selected sale
+app.post("/update", writeOff.updateSelectedWriteOff);
+
 module.exports = app;
 

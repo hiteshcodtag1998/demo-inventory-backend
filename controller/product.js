@@ -84,6 +84,20 @@ const getAllProducts = async (req, res) => {
       }
     },
     {
+      $lookup: {
+        from: 'availablestocks',
+        localField: '_id',
+        foreignField: 'productID',
+        as: 'availablestocks'
+      }
+    },
+    {
+      $unwind: {
+        path: "$availablestocks",
+        preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+      }
+    },
+    {
       $match: {
         $or: [
           { BrandID: { $exists: true } }, // Include records with valid BrandID
@@ -100,6 +114,7 @@ const getAllProducts = async (req, res) => {
         description: 1,
         productCode: 1,
         BrandID: 1,
+        availablestocks: 1,
         isActive: 1,
         createdAt: 1,
         updatedAt: 1
@@ -146,9 +161,17 @@ const deleteSelectedProduct = async (req, res) => {
     })
   });
 
+  const deleteAvailableStock = await SecondaryAvailableStock.deleteMany(
+    { productID: req.params.id }
+  ).then(async () => {
+    await PrimaryAvailableStock.findByIdAndUpdate({ productID: req.params.id }, { isActive: false }).catch(() => {
+      console.log('Primary sales error')
+    })
+  });
+
   res.json({
     deleteProduct,
-    deletePurchaseProduct, deleteSaleProduct
+    deletePurchaseProduct, deleteSaleProduct, deleteAvailableStock
   });
 };
 

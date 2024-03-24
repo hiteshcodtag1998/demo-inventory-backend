@@ -12,7 +12,7 @@ app.get("/get/totalpurchaseamount", purchase.getTotalPurchaseAmount);
 
 app.post("/purchase-pdf-download", purchase.purchasePdfDownload)
 
-// Update Selected Product
+// Update Selected Purchase
 app.post("/update", purchase.updateSelectedPurchaase);
 
 module.exports = app;

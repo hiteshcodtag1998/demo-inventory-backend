@@ -23,6 +23,14 @@ const HistorySchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'purchases',
         },
+        saleID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'sales',
+        },
+        writeOffID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'writeOffs',
+        },
         isActive: {
             type: Boolean,
             default: true

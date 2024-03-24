@@ -193,6 +193,74 @@ const writeOffPdfDownload = (req, res) => {
     } catch (error) {
         console.log('error in productPdfDownload', error)
     }
-}
+};
 
-module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount, writeOffPdfDownload };
+// Update Selected WriteOff
+const updateSelectedWriteOff = async (req, res) => {
+    try {
+        const existsAvailableStock = await SecondaryAvailableStock.findOne({
+            warehouseID: req.body.warehouseID,
+            productID: req.body.productID,
+        });
+
+        if (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold) {
+            throw new Error("Stock is not available")
+        }
+
+        const updatedResult = await SecondaryWriteOff.findByIdAndUpdate(
+            { _id: req.body.writeOffID },
+            {
+                userID: req.body.userID,
+                ProductID: req.body.productID,
+                StockSold: req.body.stockSold,
+                SaleDate: req.body.saleDate,
+                SupplierName: req.body.supplierName,
+                StoreName: req.body.storeName,
+                BrandID: req.body.brandID,
+                warehouseID: req.body.warehouseID,
+                referenceNo: req.body?.referenceNo || ""
+            },
+            { new: true }
+        );
+
+        // Start History Data
+        const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
+        const historyPayload = {
+            productID: updatedResult.ProductID,
+            writeOffID: updatedResult._id,
+            description: `${productInfo?.name || ""} product writeOff updated`,
+            type: HISTORY_TYPE.UPDATE,
+        };
+
+        await addHistoryData(historyPayload, req?.headers?.role);
+        // End History Data
+
+        // Start update in available stock
+
+        const availableStockPayload = {
+            warehouseID: req.body.warehouseID,
+            productID: req.body.productID,
+            stock: req.body.stockSold
+        }
+
+        await SecondaryAvailableStock.findByIdAndUpdate(
+            { _id: existsAvailableStock._id }, availableStockPayload)
+        await PrimaryAvailableStock.findByIdAndUpdate(
+            { _id: existsAvailableStock._id }, availableStockPayload)
+
+        soldStock(req.body.productID, req.body.stockSold);
+
+        // End update in available stock
+
+        await PrimaryWriteOff.findByIdAndUpdate({ _id: req.body.writeOffID }, {
+            StockSold: req.body.stockSold,
+            SaleDate: req.body.saleDate,
+            referenceNo: req.body?.referenceNo || ""
+        })
+        res.json(updatedResult);
+    } catch (error) {
+        res.status(500).send({ error, message: error?.message || "" });
+    }
+};
+
+module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount, writeOffPdfDownload, updateSelectedWriteOff };
