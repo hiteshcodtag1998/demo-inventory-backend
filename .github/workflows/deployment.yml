@@ -19,6 +19,12 @@ jobs:
     - name: Install Dependencies
       run: npm install
 
+    - name: SSH_PRIVATE_KEY
+      run: echo ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: USERNAME
+      run: echo ${{ secrets.USERNAME }}
+
     - name: Copy files to Lightsail
       uses: appleboy/scp-action@master
       with:
