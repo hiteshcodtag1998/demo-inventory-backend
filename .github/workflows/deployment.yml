@@ -26,7 +26,7 @@ jobs:
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: 22
-        source: "./inventory-demo/demo-inventory-backend"
+        source: "."
         target: "/home/ubuntu/inventory-demo/demo-inventory-backend"
 
     - name: Restart Node.js app
