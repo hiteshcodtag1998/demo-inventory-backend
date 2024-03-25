@@ -25,6 +25,9 @@ jobs:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
+        echo "${{ secrets.SSH_PRIVATE_KEY }}"
+        echo "${{ secrets.USERNAME }}"
+        echo "${{ secrets.HOST }}"
         port: 22
         source: "."
         target: "/home/ubuntu/inventory-demo/demo-inventory-backend"
