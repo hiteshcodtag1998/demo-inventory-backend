@@ -18,9 +18,6 @@ jobs:
     - name: Install Dependencies
       run: npm install
 
-    - name: Build
-      run: npm run build # If you have a build step
-
     - name: Deploy to AWS Lightsail
       uses: appleboy/scp-action@master
       env:
