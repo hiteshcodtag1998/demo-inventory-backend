@@ -25,4 +25,4 @@ jobs:
 
     - name: Deploy to Lightsail
       run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@65.1.9.112 'cd /home/ubuntu/inventory-demo/demo-inventory-backend && sudo git pull && sudo pm2 start server.js --name "demo-inventory-backend"'
+        ssh -o StrictHostKeyChecking=no ubuntu@65.1.9.112 'cd /home/ubuntu/inventory-demo/demo-inventory-backend && sudo git pull && sudo pm2 start server.js --name "demo-inventory-backend" -f'
