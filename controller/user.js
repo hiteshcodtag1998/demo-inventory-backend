@@ -1,3 +1,4 @@
+const role = require("../models/role");
 const { PrimaryUser, SecondaryUser } = require("../models/users");
 
 // Add AdminUser
@@ -26,7 +27,23 @@ const addSuperAdminUser = async (req, res) => {
 
 // Get All Users
 const getAllUsers = async (req, res) => {
-    const findAllUsers = await SecondaryUser.find().populate("roleID").sort({ _id: -1 }); // -1 for descending;
+    const findAllUsers = await SecondaryUser.aggregate([
+        {
+            $lookup: {
+                from: 'roles',
+                localField: 'roleID',
+                foreignField: '_id',
+                as: 'roleID'
+            }
+        },
+        {
+            $unwind: {
+                path: "$roleID",
+                preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+            }
+        },
+        { $sort: { _id: -1 } }
+    ])
     res.json(findAllUsers);
 };
 
