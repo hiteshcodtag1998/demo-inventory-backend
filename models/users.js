@@ -9,8 +9,8 @@ const UserSchema = new mongoose.Schema({
     phoneNumber: 'Number',
     imageUrl: 'String',
     roleID: {
-        type: mongoose.Schema.Types.Mixed,
-        ref: "roles",
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Role",
     },
 }, {
     timestamps: true

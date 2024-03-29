@@ -10,8 +10,8 @@ const RoleSchema = new mongoose.Schema({
 const { primaryDB, secondaryDB } = main()
 
 module.exports = {
-    PrimaryRole: primaryDB.model('roles', RoleSchema),
-    SecondaryRole: secondaryDB.model('roles', RoleSchema)
+    PrimaryRole: primaryDB.model('Role', RoleSchema),
+    SecondaryRole: secondaryDB.model('Role', RoleSchema)
 }
 
 // const Role = mongoose.model("roles", RoleSchema);
