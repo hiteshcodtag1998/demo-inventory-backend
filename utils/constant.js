@@ -10,4 +10,10 @@ const HISTORY_TYPE = {
     WRITE_OFF: 'writeOff'
 }
 
-module.exports = { ROLES, HISTORY_TYPE }
+const METHODS = {
+    ADD: 'add',
+    UPDATE: 'update',
+    DELETE: 'delete'
+}
+
+module.exports = { ROLES, HISTORY_TYPE, METHODS }

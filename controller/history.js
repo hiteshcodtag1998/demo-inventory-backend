@@ -1,5 +1,5 @@
 const { PrimaryHistory, SecondaryHistory } = require("../models/history");
-const { ROLES, HISTORY_TYPE } = require("../utils/constant");
+const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
 
 // Add Post History
 const addHistory = async (req, res) => {
@@ -14,13 +14,31 @@ const addHistory = async (req, res) => {
 
 // Get All History
 const getAllHistory = async (req, res) => {
-    let findAllProducts;
+    let findAllHistory;
+
+    const pipeline = [
+        {
+            $lookup: {
+                from: 'users',
+                localField: 'updatedById',
+                foreignField: '_id',
+                as: 'updatedById'
+            }
+        },
+        {
+            $unwind: {
+                path: "$updatedById",
+                preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+            }
+        },
+        { $sort: { _id: -1 } }
+    ];
 
     if (req?.headers?.role === ROLES.SUPER_ADMIN)
-        findAllProducts = await PrimaryHistory.find(req.body).sort({ _id: -1 });
+        findAllHistory = await PrimaryHistory.aggregate(pipeline);
     else
-        findAllProducts = await SecondaryHistory.find(req.body).sort({ _id: -1 }); // -1 for descending;
-    res.json(findAllProducts);
+        findAllHistory = await SecondaryHistory.aggregate(pipeline);
+    res.json(findAllHistory);
 };
 
 // Delete Selected History
@@ -79,22 +97,43 @@ const updateSelectedHistory = async (req, res) => {
     }
 };
 
-const addHistoryData = async (data, role = null, type = null) => {
+const addHistoryData = async (data, role = null, type = null, method = null) => {
 
     try {
         let secondaryResult = data
+        let primaryResult;
+        let updatedSecondaryPayload = { ...data }
 
-        if (type === HISTORY_TYPE.DELETE) {
-            secondaryResult = await SecondaryHistory.insertMany([secondaryResult]).catch(err => console.log('Err', err))
-            if (role === ROLES.SUPER_ADMIN) {
-                await PrimaryHistory.insertMany([{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
-                if (type === HISTORY_TYPE.DELETE) await SecondaryHistory.deleteMany({ productID: secondaryResult?.[0]?.productID })
-            }
-        } else {
-            secondaryResult = await SecondaryHistory.insertMany([secondaryResult]).catch(err => console.log('Err', err))
-            await PrimaryHistory.insertMany([{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+        if (role === ROLES.SUPER_ADMIN && method && METHODS.ADD !== method) {
+            delete updatedSecondaryPayload.createdById
+            delete updatedSecondaryPayload.updatedById
         }
 
+        if (method === METHODS.ADD) {
+            if (type === HISTORY_TYPE.DELETE) {
+                secondaryResult = await SecondaryHistory.insertMany([updatedSecondaryPayload]).catch(err => console.log('Err', err))
+                if (role === ROLES.SUPER_ADMIN) {
+                    primaryResult = await PrimaryHistory.insertMany([{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+                    if (type === HISTORY_TYPE.DELETE) await SecondaryHistory.deleteMany({ productID: secondaryResult?.[0]?.productID })
+                }
+            } else {
+                secondaryResult = await SecondaryHistory.insertMany([updatedSecondaryPayload]).catch(err => console.log('Err', err))
+                primaryResult = await PrimaryHistory.insertMany([{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+            }
+        } else if (method === METHODS.UPDATE) {
+            if (type === HISTORY_TYPE.DELETE) {
+                secondaryResult = await SecondaryHistory.updateMany({ _id: data?.historyID }, [updatedSecondaryPayload]).catch(err => console.log('Err', err))
+                if (role === ROLES.SUPER_ADMIN) {
+                    primaryResult = await PrimaryHistory.updateMany({ _id: data?.historyID }, [{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+                    if (type === HISTORY_TYPE.DELETE) await SecondaryHistory.deleteMany({ productID: secondaryResult?.[0]?.productID })
+                }
+            } else {
+                secondaryResult = await SecondaryHistory.updateMany({ _id: data?.historyID }, updatedSecondaryPayload).catch(err => console.log('Err', err))
+                primaryResult = await PrimaryHistory.updateMany({ _id: data?.historyID }, data).catch(err => console.log('Err', err))
+            }
+        }
+
+        return { primaryResult, secondaryResult };
     } catch (error) {
         console.log('Err', err)
     }

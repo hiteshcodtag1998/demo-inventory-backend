@@ -2,7 +2,7 @@ const { PrimaryProduct, SecondaryProduct } = require("../models/product");
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const { SecondaryBrand } = require("../models/brand");
-const { ROLES, HISTORY_TYPE } = require("../utils/constant");
+const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { addHistoryData } = require("./history");
@@ -30,17 +30,26 @@ const addProduct = async (req, res) => {
           productCode
         });
 
-        const savedProduct = await addProduct.save();
+        let savedProduct = await addProduct.save();
+
+        const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
 
         const historyPayload = {
           productID: savedProduct._id,
           description: `${savedProduct?.name || ""} product added`,
           type: HISTORY_TYPE.ADD,
-          productCode
+          productCode,
+          createdById: requestby,
+          updatedById: requestby
         };
 
-        await addHistoryData(historyPayload, req?.headers?.role);
-        await PrimaryProduct.insertMany([savedProduct]);
+        const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
+
+        savedProduct = { ...savedProduct._doc, HistoryID: secondaryResult?.[0]?._id }
+        await Promise.all([
+          PrimaryProduct.insertMany([savedProduct]),
+          SecondaryProduct.updateOne({ _id: new ObjectId(savedProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
+        ]);
 
         return savedProduct;
       })
@@ -48,7 +57,6 @@ const addProduct = async (req, res) => {
 
     res.status(200).send(productDocs);
   } catch (err) {
-    console.error('Error adding products:', err);
     res.status(402).send(err);
   }
 };
@@ -178,25 +186,32 @@ const deleteSelectedProduct = async (req, res) => {
 // Update Selected Product
 const updateSelectedProduct = async (req, res) => {
   try {
-    const productCode = `${req.body.name?.toUpperCase()}-${uuidv4().split('-')[0]}`
+    // const productCode = `${req.body.name?.toUpperCase()}-${uuidv4().split('-')[0]}`
     const updatedResult = await SecondaryProduct.findByIdAndUpdate(
       { _id: req.body.productID },
       {
         name: req.body.name,
         manufacturer: req.body.manufacturer,
         description: req.body.description,
-        productCode
+        // productCode,
       },
       { new: true }
     );
+
+    const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
 
     const historyPayload = {
       productID: updatedResult._id,
       description: `${updatedResult?.name || ""} product updated`,
       type: HISTORY_TYPE.UPDATE,
-      productCode
+      // productCode,
+      createdById: requestby,
+      updatedById: requestby,
+      historyID: updatedResult?.HistoryID || ""
     }
-    addHistoryData(historyPayload, req?.headers?.role).catch(err => console.log('Err', err))
+
+
+    await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE).catch(err => console.log('Err', err))
 
     await PrimaryProduct.findByIdAndUpdate({ _id: req.body.productID }, {
       name: req.body.name,

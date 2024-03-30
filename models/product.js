@@ -9,21 +9,22 @@ const ProductSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: true,
     },
     manufacturer: {
       type: String,
     },
     stock: {
       type: Number,
-      required: true,
     },
     description: String,
     productCode: String,
     BrandID: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "brand",
-      required: true,
+    },
+    HistoryID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "history"
     },
     isActive: {
       type: Boolean,

@@ -31,6 +31,16 @@ const HistorySchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'writeOffs',
         },
+        createdById: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'users',
+            default: null
+        },
+        updatedById: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'users',
+            default: null
+        },
         isActive: {
             type: Boolean,
             default: true
