@@ -43,6 +43,10 @@ const PurchaseSchema = new mongoose.Schema(
     referenceNo: {
       type: String
     },
+    HistoryID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "history"
+    },
     isActive: {
       type: Boolean,
       default: true

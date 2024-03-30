@@ -1,6 +1,6 @@
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const soldStock = require("../controller/soldStock");
-const { ROLES, HISTORY_TYPE } = require("../utils/constant");
+const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
 const { SecondaryProduct } = require("../models/product");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
@@ -45,8 +45,9 @@ const addSales = async (req, res) => {
         if (isExistProduct) {
           const addSalesDetails = new SecondarySales(payload);
 
-          const salesProduct = await addSalesDetails.save();
+          let salesProduct = await addSalesDetails.save();
 
+          const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
           // Start History Data
           const productInfo = await SecondaryProduct.findOne({ _id: salesProduct.ProductID })
           const historyPayload = {
@@ -54,9 +55,11 @@ const addSales = async (req, res) => {
             saleID: salesProduct._id,
             description: `${productInfo?.name || ""} product sold`,
             type: HISTORY_TYPE.ADD,
+            createdById: requestby,
+            updatedById: requestby
           };
 
-          await addHistoryData(historyPayload, req?.headers?.role);
+          const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
           // End History Data
 
           // Start update in available stock
@@ -70,7 +73,11 @@ const addSales = async (req, res) => {
           await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
           // End update in available stock
 
-          await PrimarySales.insertMany([salesProduct]).catch(err => console.log('Err', err))
+          salesProduct = { ...salesProduct._doc, HistoryID: secondaryResult?.[0]?._id }
+          await Promise.all([
+            PrimarySales.insertMany([salesProduct]),
+            SecondarySales.updateOne({ _id: new ObjectId(salesProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
+          ]);
           soldStock(sale.productID, sale.stockSold);
 
           return salesProduct;
@@ -265,6 +272,8 @@ const updateSelectedSale = async (req, res) => {
       { new: true }
     );
 
+    const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+
     // Start History Data
     const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
     const historyPayload = {
@@ -272,9 +281,12 @@ const updateSelectedSale = async (req, res) => {
       saleID: updatedResult._id,
       description: `${productInfo?.name || ""} product sales updated`,
       type: HISTORY_TYPE.UPDATE,
+      createdById: requestby,
+      updatedById: requestby,
+      historyID: updatedResult?.HistoryID || ""
     };
 
-    await addHistoryData(historyPayload, req?.headers?.role);
+    await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
     // End History Data
 
     // Start update in available stock

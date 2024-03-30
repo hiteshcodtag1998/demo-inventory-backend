@@ -1,11 +1,12 @@
 const { PrimaryPurchase, SecondaryPurchase } = require("../models/purchase");
 const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
-const { ROLES, HISTORY_TYPE } = require("../utils/constant");
+const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const purchaseStock = require("./purchaseStock");
 const { addHistoryData } = require("./history");
 const { SecondaryProduct } = require("../models/product");
+const { ObjectId } = require('mongodb');
 
 // Add Purchase Details
 const addPurchase = async (req, res) => {
@@ -29,8 +30,9 @@ const addPurchase = async (req, res) => {
           referenceNo: product?.referenceNo || ""
         });
 
-        const purchaseProduct = await addPurchaseDetails.save();
+        let purchaseProduct = await addPurchaseDetails.save();
 
+        const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
         // Start History Data
         const productInfo = await SecondaryProduct.findOne({ _id: purchaseProduct.ProductID })
         const historyPayload = {
@@ -38,10 +40,12 @@ const addPurchase = async (req, res) => {
           purchaseID: purchaseProduct._id,
           description: `${productInfo?.name || ""} product purchased`,
           type: HISTORY_TYPE.ADD,
+          createdById: requestby,
+          updatedById: requestby
         };
 
 
-        await addHistoryData(historyPayload, req?.headers?.role);
+        const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
         // End History Data
 
         // Start update in available stock
@@ -55,7 +59,12 @@ const addPurchase = async (req, res) => {
         await PrimaryAvailableStock.insertMany(stocksRes)
         // End update in available stock
 
-        await PrimaryPurchase.insertMany([purchaseProduct]);
+        purchaseProduct = { ...purchaseProduct._doc, HistoryID: secondaryResult?.[0]?._id }
+        await Promise.all([
+          PrimaryPurchase.insertMany([purchaseProduct]),
+          SecondaryPurchase.updateOne({ _id: new ObjectId(purchaseProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
+        ]);
+
         purchaseStock(product.productID, product.quantityPurchased);
 
         return purchaseProduct;
@@ -185,6 +194,7 @@ const updateSelectedPurchaase = async (req, res) => {
       { new: true }
     );
 
+    const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
     // Start History Data
     const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
     const historyPayload = {
@@ -192,9 +202,12 @@ const updateSelectedPurchaase = async (req, res) => {
       purchaseID: updatedResult._id,
       description: `${productInfo?.name || ""} product purchase updated`,
       type: HISTORY_TYPE.UPDATE,
+      createdById: requestby,
+      updatedById: requestby,
+      historyID: updatedResult?.HistoryID || ""
     };
 
-    await addHistoryData(historyPayload, req?.headers?.role);
+    await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
     // End History Data
 
     // Start update in available stock
