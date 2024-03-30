@@ -33,6 +33,7 @@ const addProduct = async (req, res) => {
         let savedProduct = await addProduct.save();
 
         const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+        console.log('--->requestby', requestby)
 
         const historyPayload = {
           productID: savedProduct._id,
@@ -42,10 +43,12 @@ const addProduct = async (req, res) => {
           createdById: requestby,
           updatedById: requestby
         };
+        console.log('--->historyPayload', historyPayload)
 
         const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
 
         savedProduct = { ...savedProduct._doc, HistoryID: secondaryResult?.[0]?._id }
+        console.log('--->savedProduct', savedProduct)
         await Promise.all([
           PrimaryProduct.insertMany([savedProduct]),
           SecondaryProduct.updateOne({ _id: new ObjectId(savedProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
