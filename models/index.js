@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const Role = require("./role")
-const User = require("./users")
+// const Role = require("./role")
+// const User = require("./users")
 // const uri = "mongodb://localhost:27017/demo-inventory?readPreference=primary&appname=MongoDB%20Compass%20Community&ssl=false";
 
 const MONGO_URI =
