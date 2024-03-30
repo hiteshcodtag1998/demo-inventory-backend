@@ -20,7 +20,6 @@ const PORT = 8080;
 main();
 app.use(express.json());
 app.use(cors());
-// Test Comment
 
 // Role API
 app.use("/api/role", roleRoute);
