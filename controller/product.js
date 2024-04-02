@@ -95,20 +95,20 @@ const getAllProducts = async (req, res) => {
         preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
       }
     },
-    {
-      $lookup: {
-        from: 'availablestocks',
-        localField: '_id',
-        foreignField: 'productID',
-        as: 'availablestocks'
-      }
-    },
-    {
-      $unwind: {
-        path: "$availablestocks",
-        preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
-      }
-    },
+    // {
+    //   $lookup: {
+    //     from: 'availablestocks',
+    //     localField: '_id',
+    //     foreignField: 'productID',
+    //     as: 'availablestocks'
+    //   }
+    // },
+    // {
+    //   $unwind: {
+    //     path: "$availablestocks",
+    //     preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+    //   }
+    // },
     {
       $match: {
         $or: [
@@ -126,7 +126,7 @@ const getAllProducts = async (req, res) => {
         description: 1,
         productCode: 1,
         BrandID: 1,
-        availablestocks: 1,
+        // availablestocks: 1,
         isActive: 1,
         createdAt: 1,
         updatedAt: 1
@@ -236,20 +236,62 @@ const searchProduct = async (req, res) => {
   let findAllProducts;
   if (req?.headers?.role === ROLES.SUPER_ADMIN)
     findAllProducts = await PrimaryProduct
-      .find({
-        $or: [
-          { name: { $regex: searchTerm, $options: "i" } },
-          { productCode: { $regex: searchTerm, $options: "i" } }
-        ],
-      }).sort({ _id: -1 });
+      .aggregate([
+        {
+          $lookup: {
+            from: 'brands',
+            localField: 'BrandID',
+            foreignField: '_id',
+            as: 'BrandID'
+          }
+        },
+        {
+          $unwind: {
+            path: "$BrandID",
+            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+          }
+        },
+        {
+          $match: {
+            $or: [
+              { name: { $regex: searchTerm, $options: "i" } },
+              { productCode: { $regex: searchTerm, $options: "i" } }
+            ]
+          }
+        },
+        {
+          $sort: { _id: -1 }
+        }
+      ]);
   else
     findAllProducts = await SecondaryProduct
-      .find({
-        $or: [
-          { name: { $regex: searchTerm, $options: "i" } },
-          { productCode: { $regex: searchTerm, $options: "i" } }
-        ],
-      }).sort({ _id: -1 }); // -1 for descending;
+      .aggregate([
+        {
+          $lookup: {
+            from: 'brands',
+            localField: 'BrandID',
+            foreignField: '_id',
+            as: 'BrandID'
+          }
+        },
+        {
+          $unwind: {
+            path: "$BrandID",
+            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+          }
+        },
+        {
+          $match: {
+            $or: [
+              { name: { $regex: searchTerm, $options: "i" } },
+              { productCode: { $regex: searchTerm, $options: "i" } }
+            ]
+          }
+        },
+        {
+          $sort: { _id: -1 }
+        }
+      ]); // -1 for descending;
   res.json(findAllProducts);
 };
 

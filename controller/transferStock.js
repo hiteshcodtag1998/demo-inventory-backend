@@ -1,7 +1,6 @@
 const { PrimaryTransferStock, SecondaryTransferStock } = require("../models/transferStock");
 const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
 const ROLES = require("../utils/constant");
-const purchaseStock = require("./purchaseStock");
 const { ObjectId } = require('mongodb');
 
 // Add TransferStock Details
@@ -31,7 +30,7 @@ const addTransferStock = async (req, res) => {
         await SecondaryAvailableStock.findOneAndUpdate(new ObjectId(existsAvailableStock?._id), { $inc: { stock: -product.quantityPurchased } })
         await PrimaryAvailableStock.findOneAndUpdate(new ObjectId(existsAvailableStock?._id), { $inc: { stock: -product.quantityPurchased } })
 
-        const addPurchaseDetails = new SecondaryTransferStock({
+        const addTransferStockDetails = new SecondaryTransferStock({
             userID: req.body.userID,
             productID: req.body.productID,
             quantity: req.body.quantityPurchased,
@@ -46,7 +45,7 @@ const addTransferStock = async (req, res) => {
             // ReceivingLocation: req.body.receivingLocation
         });
 
-        addPurchaseDetails
+        addTransferStockDetails
             .save()
             .then(async (result) => {
                 await PrimaryTransferStock.insertMany([result]).catch(err => console.log('Err', err))

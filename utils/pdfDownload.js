@@ -36,7 +36,7 @@ const generatePDFfromHTML = async (htmlContent, res) => {
     // // Send the generated PDF as the response
     // res.send(doc.output());
 
-    const browser = await puppeteer.launch();
+    const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
 
     // Set content to the HTML
