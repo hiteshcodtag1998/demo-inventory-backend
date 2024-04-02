@@ -245,7 +245,6 @@ const updateSelectedPurchaase = async (req, res) => {
 
 const purchasePdfDownload = async (req, res) => {
   try {
-    console.log('req.body', req.body)
     const payload = {
       title: "Purchase Note",
       supplierName: req.body?.SupplierName || "",
@@ -256,7 +255,7 @@ const purchasePdfDownload = async (req, res) => {
       referenceNo: req.body?.referenceNo || ""
     }
     // Usage
-    await generatePDFfromHTML(invoiceBill(payload), res);
+    generatePDFfromHTML(invoiceBill(payload), res);
   } catch (error) {
     console.log('error in productPdfDownload', error)
   }
