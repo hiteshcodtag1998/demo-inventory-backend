@@ -27,7 +27,8 @@ const addProduct = async (req, res) => {
           BrandID: product.brandId,
           stock: 0,
           description: product.description,
-          productCode
+          productCode,
+          manufacturer: product.manufacturer
         });
 
         let savedProduct = await addProduct.save();
@@ -196,6 +197,7 @@ const updateSelectedProduct = async (req, res) => {
         name: req.body.name,
         manufacturer: req.body.manufacturer,
         description: req.body.description,
+        BrandID: req.body.brandId
         // productCode,
       },
       { new: true }

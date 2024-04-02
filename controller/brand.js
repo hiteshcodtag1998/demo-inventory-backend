@@ -3,17 +3,24 @@ const ROLES = require("../utils/constant");
 
 // Add Store
 const addBrand = async (req, res) => {
-    const addBrand = await new SecondaryBrand({
-        name: req.body.name
-    });
+    try {
+        const brandExist = await SecondaryBrand.findOne({ name: req.body.name });
+        if (brandExist) throw new Error("Brand already exists");
 
-    addBrand.save().then(async (result) => {
-        await PrimaryBrand.insertMany([result]).catch(err => console.log('Err', err))
-        res.status(200).send(result);
-    })
-        .catch((err) => {
-            res.status(402).send(err);
+        const addBrand = new SecondaryBrand({
+            name: req.body.name
         });
+
+        addBrand.save().then(async (result) => {
+            await PrimaryBrand.insertMany([result]).catch(err => console.log('Err', err))
+            res.status(200).send(result);
+        })
+            .catch((err) => {
+                res.status(402).send(err);
+            });
+    } catch (err) {
+        res.status(500).send({ err, message: err?.message || "" });
+    }
 };
 
 // Get All Stores

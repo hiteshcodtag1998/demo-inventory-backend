@@ -98,7 +98,7 @@ app.post("/api/login", async (req, res) => {
       user = await PrimaryUser.aggregate(pipeline);
     }
 
-    if (user) {
+    if (user?.length > 0) {
       const newUser = user?.length > 0 ? user[0] : {}
       res.send(newUser);
       userAuthCheck = newUser;
