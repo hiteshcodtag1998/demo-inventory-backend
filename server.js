@@ -16,7 +16,7 @@ const { PrimaryUser, SecondaryUser } = require("./models/users");
 const Product = require("./models/product");
 
 const app = express();
-const PORT = 8080;
+const PORT = 8888;
 main();
 app.use(express.json());
 app.use(cors());
