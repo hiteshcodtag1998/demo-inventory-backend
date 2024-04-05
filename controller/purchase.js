@@ -38,7 +38,7 @@ const addPurchase = async (req, res) => {
         const historyPayload = {
           productID: purchaseProduct.ProductID,
           purchaseID: purchaseProduct._id,
-          description: `${productInfo?.name || ""} product purchased`,
+          description: `${productInfo?.name || ""} ${purchaseProduct?.QuantityPurchased || ""} product purchased`,
           type: HISTORY_TYPE.ADD,
           createdById: requestby,
           updatedById: requestby
@@ -200,7 +200,7 @@ const updateSelectedPurchaase = async (req, res) => {
     const historyPayload = {
       productID: updatedResult.ProductID,
       purchaseID: updatedResult._id,
-      description: `${productInfo?.name || ""} product purchase updated`,
+      description: `${productInfo?.name || ""} ${req.body?.quantityPurchased || ""} product purchase updated`,
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,

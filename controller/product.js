@@ -34,7 +34,6 @@ const addProduct = async (req, res) => {
         let savedProduct = await addProduct.save();
 
         const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
-        console.log('--->requestby', requestby)
 
         const historyPayload = {
           productID: savedProduct._id,
@@ -44,12 +43,10 @@ const addProduct = async (req, res) => {
           createdById: requestby,
           updatedById: requestby
         };
-        console.log('--->historyPayload', historyPayload)
 
         const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
 
         savedProduct = { ...savedProduct._doc, HistoryID: secondaryResult?.[0]?._id }
-        console.log('--->savedProduct', savedProduct)
         await Promise.all([
           PrimaryProduct.insertMany([savedProduct]),
           SecondaryProduct.updateOne({ _id: new ObjectId(savedProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
@@ -231,139 +228,183 @@ const updateSelectedProduct = async (req, res) => {
 
 // Search Products
 const searchProduct = async (req, res) => {
-  const searchTerm = req.query.searchTerm;
+  try {
+    const searchTerm = req.query.searchTerm; PrimaryAvailableStock
+    const selectWarehouse = req.query.selectWarehouse;
+    const filter = {
+      $or: [
+        { name: { $regex: searchTerm, $options: "i" } },
+        { productCode: { $regex: searchTerm, $options: "i" } }
+      ]
+    }
 
-  let findAllProducts;
-  if (req?.headers?.role === ROLES.SUPER_ADMIN)
-    findAllProducts = await PrimaryProduct
-      .aggregate([
-        {
-          $lookup: {
-            from: 'brands',
-            localField: 'BrandID',
-            foreignField: '_id',
-            as: 'BrandID'
-          }
-        },
-        {
-          $unwind: {
-            path: "$BrandID",
-            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
-          }
-        },
-        {
-          $match: {
-            $or: [
-              { name: { $regex: searchTerm, $options: "i" } },
-              { productCode: { $regex: searchTerm, $options: "i" } }
-            ]
-          }
-        },
-        {
-          $sort: { _id: -1 }
+    if (selectWarehouse) {
+      filter.warehouseID = new ObjectId(selectWarehouse);
+      filter["$or"] = [
+        { "productID.name": { $regex: searchTerm, $options: "i" } },
+        { "productID.productCode": { $regex: searchTerm, $options: "i" } }
+      ]
+    }
+
+    let primaryModel = PrimaryProduct;
+    let secondaryModel = SecondaryProduct;
+
+    if (selectWarehouse) {
+      primaryModel = PrimaryAvailableStock;
+      secondaryModel = SecondaryAvailableStock;
+    }
+
+    let findAllProducts;
+    const pipeline = [
+      {
+        $lookup: {
+          from: 'brands',
+          localField: 'BrandID',
+          foreignField: '_id',
+          as: 'BrandID'
         }
-      ]);
-  else
-    findAllProducts = await SecondaryProduct
-      .aggregate([
-        {
-          $lookup: {
-            from: 'brands',
-            localField: 'BrandID',
-            foreignField: '_id',
-            as: 'BrandID'
-          }
-        },
-        {
-          $unwind: {
-            path: "$BrandID",
-            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
-          }
-        },
-        {
-          $match: {
-            $or: [
-              { name: { $regex: searchTerm, $options: "i" } },
-              { productCode: { $regex: searchTerm, $options: "i" } }
-            ]
-          }
-        },
-        {
-          $sort: { _id: -1 }
+      },
+      {
+        $unwind: {
+          path: "$BrandID",
+          preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
         }
-      ]); // -1 for descending;
-  res.json(findAllProducts);
+      },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'productID',
+          foreignField: '_id',
+          as: 'productID'
+        }
+      },
+      {
+        $unwind: {
+          path: "$productID",
+          preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+        }
+      },
+      {
+        $lookup: {
+          from: 'brands',
+          localField: 'productID.BrandID',
+          foreignField: '_id',
+          as: 'productID.BrandID'
+        }
+      },
+      {
+        $unwind: {
+          path: "$productID.BrandID",
+          preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+        }
+      },
+      {
+        $match: filter
+      },
+      {
+        $sort: { _id: -1 }
+      }
+    ];
+    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+      findAllProducts = await primaryModel
+        .aggregate(pipeline);
+    else
+      findAllProducts = await secondaryModel
+        .aggregate(pipeline); // -1 for descending;
+    res.json(findAllProducts);
+  } catch (error) {
+    res.status(500).send({ error, message: error?.message || "" });
+  }
 };
 
 // Search Products
 const searchProductByWarehouse = async (req, res) => {
-  const searchTerm = req.query.selectWarehouse;
+  try {
+    const searchTerm = req.query.selectWarehouse;
 
-  let findAllProducts;
-  if (req?.headers?.role === ROLES.SUPER_ADMIN)
-    findAllProducts = await PrimaryAvailableStock
-      .aggregate([
-        {
-          $lookup: {
-            from: 'product',
-            localField: 'productID',
-            foreignField: '_id',
-            as: 'productID'
-          }
-        },
-        {
-          $unwind: {
-            path: "$productID",
-            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
-          }
-        },
-        {
-          $match: {
-            warehouseID: new ObjectId(searchTerm)
-          }
-        },
-      ])
+    let findAllProducts;
+    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+      findAllProducts = await PrimaryAvailableStock
+        .aggregate([
+          {
+            $lookup: {
+              from: 'product',
+              localField: 'productID',
+              foreignField: '_id',
+              as: 'productID'
+            }
+          },
+          {
+            $unwind: {
+              path: "$productID",
+              preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+            }
+          },
+          {
+            $match: {
+              warehouseID: new ObjectId(searchTerm)
+            }
+          },
+        ])
 
-  else
-    findAllProducts = await SecondaryAvailableStock
-      .aggregate([
-        {
-          $match: {
-            warehouseID: new ObjectId(searchTerm)
-          }
-        },
-        {
-          $lookup: {
-            from: 'products',
-            localField: 'productID',
-            foreignField: '_id',
-            as: 'productID'
-          }
-        },
-        {
-          $unwind: {
-            path: "$productID",
-            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
-          }
-        },
-        {
-          $lookup: {
-            from: 'brands',
-            localField: 'productID.BrandID',
-            foreignField: '_id',
-            as: 'productID.BrandID'
-          }
-        },
-        {
-          $unwind: {
-            path: "$productID.BrandID",
-            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
-          }
-        },
+    else
+      findAllProducts = await SecondaryAvailableStock
+        .aggregate([
+          {
+            $match: {
+              warehouseID: new ObjectId(searchTerm)
+            }
+          },
+          {
+            $lookup: {
+              from: 'products',
+              localField: 'productID',
+              foreignField: '_id',
+              as: 'productID'
+            }
+          },
+          {
+            $unwind: {
+              path: "$productID",
+              preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+            }
+          },
+          {
+            $lookup: {
+              from: 'brands',
+              localField: 'productID.BrandID',
+              foreignField: '_id',
+              as: 'productID.BrandID'
+            }
+          },
+          {
+            $unwind: {
+              path: "$productID.BrandID",
+              preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+            }
+          },
 
-      ])
-  res.json(findAllProducts);
+        ])
+    res.json(findAllProducts);
+  } catch (error) {
+    res.status(500).send({ error, message: error?.message || "" });
+  }
 };
+
+// Get Total product count
+const getTotalCounts = async (req, res) => {
+  try {
+    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+      findAllProducts = await primaryModel
+        .aggregate(pipeline);
+    else
+      findAllProducts = await secondaryModel.find().count() // -1 for descending;
+    res.json(findAllProducts);
+
+  } catch (error) {
+    res.status(500).send({ error, message: error?.message || "" });
+  }
+}
 
 module.exports = {
   addProduct,
@@ -371,5 +412,6 @@ module.exports = {
   deleteSelectedProduct,
   updateSelectedProduct,
   searchProduct,
-  searchProductByWarehouse
+  searchProductByWarehouse,
+  getTotalCounts
 };
