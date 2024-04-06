@@ -228,7 +228,7 @@ const updateSelectedWriteOff = async (req, res) => {
         const historyPayload = {
             productID: updatedResult.ProductID,
             writeOffID: updatedResult._id,
-            description: `${productInfo?.name || ""} ${req.body?.stockSold || ""} product writeOff updated`,
+            description: `${productInfo?.name || ""} product writeOff updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
             type: HISTORY_TYPE.UPDATE,
         };
 

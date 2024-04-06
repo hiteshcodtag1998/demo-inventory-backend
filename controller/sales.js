@@ -53,7 +53,7 @@ const addSales = async (req, res) => {
           const historyPayload = {
             productID: salesProduct.ProductID,
             saleID: salesProduct._id,
-            description: `${productInfo?.name || ""} ${sale?.stockSold || ""} product sold`,
+            description: `${productInfo?.name || ""} product sold ${sale?.stockSold ? `(No of sale: ${sale?.stockSold})` : ""}`,
             type: HISTORY_TYPE.ADD,
             createdById: requestby,
             updatedById: requestby
@@ -279,7 +279,7 @@ const updateSelectedSale = async (req, res) => {
     const historyPayload = {
       productID: updatedResult.ProductID,
       saleID: updatedResult._id,
-      description: `${productInfo?.name || ""} ${req.body?.stockSold || ""} product sales updated`,
+      description: `${productInfo?.name || ""} product sales updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,
