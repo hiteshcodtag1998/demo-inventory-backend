@@ -394,13 +394,28 @@ const searchProductByWarehouse = async (req, res) => {
 // Get Total product count
 const getTotalCounts = async (req, res) => {
   try {
-    if (req?.headers?.role === ROLES.SUPER_ADMIN)
-      findAllProducts = await primaryModel
-        .aggregate(pipeline);
-    else
-      findAllProducts = await secondaryModel.find().count() // -1 for descending;
-    res.json(findAllProducts);
+    let totalProductCounts = 0
+    let totalItemInWarehouse = 0
+    const filter = {}
 
+    const selectWarehouse = req.query.selectWarehouse;
+
+    if (selectWarehouse) {
+      filter.warehouseID = new ObjectId(selectWarehouse);
+      primaryModel = PrimaryAvailableStock
+      secondaryModel = SecondaryAvailableStock
+    }
+
+    if (req?.headers?.role === ROLES.SUPER_ADMIN) {
+      totalProductCounts = await PrimaryProduct.find().count()
+      totalItemInWarehouse = await PrimaryAvailableStock.find(filter).count()
+    }
+    else {
+      totalProductCounts = await SecondaryProduct.find().count()
+      totalItemInWarehouse = await SecondaryAvailableStock.find(filter).count()
+    }
+
+    res.json({ totalProductCounts, totalItemInWarehouse });
   } catch (error) {
     res.status(500).send({ error, message: error?.message || "" });
   }

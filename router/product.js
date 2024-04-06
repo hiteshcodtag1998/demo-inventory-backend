@@ -18,6 +18,9 @@ app.post("/update", product.updateSelectedProduct);
 app.get("/search", product.searchProduct);
 
 // Search Product
+app.get("/get-total-counts", product.getTotalCounts);
+
+// Search Product
 app.get("/select-by-warehouse", product.searchProductByWarehouse);
 
 // http://localhost:4000/api/product/search?searchTerm=fa
