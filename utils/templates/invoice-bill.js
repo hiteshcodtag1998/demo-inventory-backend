@@ -1,3 +1,4 @@
+const moment = require("moment")
 
 const invoiceBill = (data) => {
     return `<!DOCTYPE html>
@@ -43,14 +44,14 @@ const invoiceBill = (data) => {
     <div style="display: flex; justify-content: space-between">
         <h1>${data?.title || ""}</h1>
     </div>
-    <span>Date: ${new Date().toLocaleDateString()}</span>
+    <span>Date: ${moment(new Date()).format('DD-MM-YYYY')}</span>
     <div style="display: flex; justify-content: space-between">
         ${data?.supplierName ? `<div>
             Supplier Name: ${data.supplierName}
         </div></>` : ""}
-        <div>
-            Warehouse Name: ${data?.storeName || ""}
-        </div>
+        ${data?.storeName ? `<div>
+            Warehouse Name: ${data.storeName}
+        </div></>` : ""}
     </div>
     <div style="display: flex; justify-content: space-between">
         <div>
@@ -61,6 +62,14 @@ const invoiceBill = (data) => {
             Reference No: ${data?.referenceNo || ""}
         </div>`
             : ""}
+    </div>
+    <div style="display: flex; justify-content: space-between">
+        ${data?.fromWarehouse ? `<div>
+            From Warehouse: ${data.fromWarehouse}
+        </div></>` : ""}
+        ${data?.toWarehouse ? `<div>
+            To Warehouse: ${data.toWarehouse}
+        </div></>` : ""}
     </div>
     <div>
         <table>

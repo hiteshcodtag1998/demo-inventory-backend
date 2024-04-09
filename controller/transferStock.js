@@ -2,6 +2,8 @@ const { PrimaryTransferStock, SecondaryTransferStock } = require("../models/tran
 const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
 const ROLES = require("../utils/constant");
 const { ObjectId } = require('mongodb');
+const { generatePDFfromHTML } = require("../utils/pdfDownload");
+const { invoiceBill } = require("../utils/templates/invoice-bill");
 
 // Add TransferStock Details
 const addTransferStock = async (req, res) => {
@@ -161,4 +163,23 @@ const getTotalPurchaseAmount = async (req, res) => {
     res.json({ totalPurchaseAmount });
 };
 
-module.exports = { addTransferStock, getTransferStockData, getTotalPurchaseAmount };
+const transferStockPdfDownload = (req, res) => {
+    try {
+        const payload = {
+            title: "Transfer Stock Note",
+            supplierName: req.body?.SupplierName || "",
+            storeName: req.body?.warehouseID?.name || "",
+            qty: req.body?.quantity || "",
+            brandName: req.body?.brandID?.name || "",
+            productName: req.body?.productID?.name || "",
+            referenceNo: req.body?.referenceNo || "",
+            fromWarehouse: req.body?.fromWarehouseID?.name || "",
+            toWarehouse: req.body?.toWarehouseID?.name || ""
+        }
+        generatePDFfromHTML(invoiceBill(payload), res);
+    } catch (error) {
+        console.log('error in productPdfDownload', error)
+    }
+}
+
+module.exports = { addTransferStock, getTransferStockData, getTotalPurchaseAmount, transferStockPdfDownload };
