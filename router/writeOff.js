@@ -13,5 +13,7 @@ app.post("/writeOff-pdf-download", writeOff.writeOffPdfDownload)
 // Update Selected sale
 app.post("/update", writeOff.updateSelectedWriteOff);
 
+app.post("/writeOff-multipleitems-pdf-download", writeOff.writeOffMultileItemsPdfDownload)
+
 module.exports = app;
 

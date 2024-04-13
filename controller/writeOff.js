@@ -1,6 +1,6 @@
 const { SecondaryProduct } = require("../models/product");
 const { PrimaryWriteOff, SecondaryWriteOff } = require("../models/writeOff");
-const { ROLES, HISTORY_TYPE } = require("../utils/constant");
+const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { addHistoryData } = require("./history");
@@ -13,9 +13,9 @@ const { ObjectId } = require('mongodb');
 const addWriteOff = async (req, res) => {
 
     try {
-        const sales = req.body;
+        const writeOffs = req.body;
         const saleDocs = await Promise.all(
-            sales.map(async (sale) => {
+            writeOffs.map(async (sale) => {
 
                 const existsAvailableStock = await SecondaryAvailableStock.findOne({
                     warehouseID: sale.warehouseID,
@@ -46,7 +46,22 @@ const addWriteOff = async (req, res) => {
                 if (isExistProduct) {
                     const addSalesDetails = new SecondaryWriteOff(payload);
 
-                    const salesProduct = await addSalesDetails.save();
+                    let salesProduct = await addSalesDetails.save();
+
+                    const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+                    // Start History Data
+                    const productInfo = await SecondaryProduct.findOne({ _id: salesProduct.ProductID })
+                    const historyPayload = {
+                        productID: salesProduct.ProductID,
+                        saleID: salesProduct._id,
+                        description: `${productInfo?.name || ""} product writeoff ${sale?.stockSold ? `(No of writeoff: ${sale?.stockSold})` : ""}`,
+                        type: HISTORY_TYPE.ADD,
+                        createdById: requestby,
+                        updatedById: requestby
+                    };
+
+                    const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
+                    // End History Data
 
                     // Start update in available stock
                     const availableStockPayload = {
@@ -59,7 +74,11 @@ const addWriteOff = async (req, res) => {
                     await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
                     // End update in available stock
 
-                    await PrimaryWriteOff.insertMany([salesProduct]).catch(err => console.log('Err', err))
+                    salesProduct = { ...salesProduct._doc, HistoryID: secondaryResult?.[0]?._id }
+                    await Promise.all([
+                        PrimaryWriteOff.insertMany([salesProduct]),
+                        SecondaryWriteOff.updateOne({ _id: new ObjectId(salesProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
+                    ]);
                     soldStock(sale.productID, sale.stockSold);
 
                     return salesProduct;
@@ -203,6 +222,8 @@ const updateSelectedWriteOff = async (req, res) => {
             productID: req.body.productID,
         });
 
+        const beforeWriteOffData = await SecondaryWriteOff.findOne({ _id: req.body.writeOffID });
+
         if (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold) {
             throw new Error("Stock is not available")
         }
@@ -223,32 +244,35 @@ const updateSelectedWriteOff = async (req, res) => {
             { new: true }
         );
 
+        const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+
         // Start History Data
         const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
         const historyPayload = {
             productID: updatedResult.ProductID,
             writeOffID: updatedResult._id,
+            createdById: requestby,
+            updatedById: requestby,
+            historyID: updatedResult?.HistoryID || "",
             description: `${productInfo?.name || ""} product writeOff updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
             type: HISTORY_TYPE.UPDATE,
         };
 
-        await addHistoryData(historyPayload, req?.headers?.role);
+        await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
         // End History Data
 
         // Start update in available stock
-
         const availableStockPayload = {
             warehouseID: req.body.warehouseID,
             productID: req.body.productID,
-            stock: req.body.stockSold
+            stock: (existsAvailableStock?.stock - Number(req.body.stockSold)) + beforeWriteOffData?.StockSold
         }
 
-        await SecondaryAvailableStock.findByIdAndUpdate(
-            { _id: existsAvailableStock._id }, availableStockPayload)
-        await PrimaryAvailableStock.findByIdAndUpdate(
-            { _id: existsAvailableStock._id }, availableStockPayload)
+        await SecondaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload);
+        await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
+        // End update in available stock
 
-        soldStock(req.body.productID, req.body.stockSold);
+        soldStock(req.body.productID, req.body.stockSold, true, beforeWriteOffData?.StockSold);
 
         // End update in available stock
 
@@ -263,4 +287,72 @@ const updateSelectedWriteOff = async (req, res) => {
     }
 };
 
-module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount, writeOffPdfDownload, updateSelectedWriteOff };
+const writeOffMultileItemsPdfDownload = async (req, res) => {
+    try {
+        const writeOffs = req.body;
+
+        const payload = {
+            title: "WriteOff Note",
+            supplierName: req.body?.[0]?.supplierName || "",
+            qty: [],
+            productName: [],
+            brandName: [],
+            referenceNo: req.body?.[0]?.referenceNo || ""
+        }
+
+        if (req.body?.[0]?.warehouseID) {
+            const warehouseInfos = await SecondaryWarehouse.findOne({ _id: new ObjectId(req.body?.[0]?.warehouseID) }).lean();
+            payload.storeName = warehouseInfos?.name || ""
+        }
+
+        await Promise.all(
+            writeOffs.map(async (sale) => {
+                const aggregationPiepline = [
+                    {
+                        $match: {
+                            _id: new ObjectId(sale.productID)
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: 'brands',
+                            localField: 'BrandID',
+                            foreignField: '_id',
+                            as: 'BrandID'
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: "$BrandID",
+                            preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+                        }
+                    },
+                    {
+                        $project: {
+                            userID: 1,
+                            name: 1,
+                            manufacturer: 1,
+                            stock: 1,
+                            description: 1,
+                            productCode: 1,
+                            BrandID: 1,
+                            isActive: 1,
+                            createdAt: 1,
+                            updatedAt: 1
+                        },
+                    }];
+
+                const productInfos = await SecondaryProduct.aggregate(aggregationPiepline);
+                if (productInfos?.length > 0) {
+                    payload.productName.push(productInfos[0]?.name || "")
+                    payload.qty.push(sale.stockSold || "")
+                    payload.brandName.push(productInfos[0]?.BrandID?.name || "")
+                }
+            }));
+        generatePDFfromHTML(invoiceBillMultipleItems(payload), res);
+    } catch (error) {
+        console.log('error in salePdfDownload', error)
+    }
+};
+
+module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount, writeOffPdfDownload, writeOffMultileItemsPdfDownload, updateSelectedWriteOff };

@@ -7,6 +7,8 @@ const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/availableStock");
 const { ObjectId } = require('mongodb');
 const { addHistoryData } = require("./history");
+const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
+const { SecondaryWarehouse } = require("../models/warehouses");
 
 // Add Sales
 const addSales = async (req, res) => {
@@ -317,4 +319,71 @@ const updateSelectedSale = async (req, res) => {
   }
 };
 
-module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount, salePdfDownload, updateSelectedSale };
+const saleMultileItemsPdfDownload = async (req, res) => {
+  try {
+    const sales = req.body;
+
+    const payload = {
+      title: "Sale Note",
+      supplierName: req.body?.[0]?.supplierName || "",
+      qty: [],
+      productName: [],
+      brandName: [],
+      referenceNo: req.body?.[0]?.referenceNo || ""
+    }
+
+    if (req.body?.[0]?.warehouseID) {
+      const warehouseInfos = await SecondaryWarehouse.findOne({ _id: new ObjectId(req.body?.[0]?.warehouseID) }).lean();
+      payload.storeName = warehouseInfos?.name || ""
+    }
+    await Promise.all(
+      sales.map(async (sale) => {
+        const aggregationPiepline = [
+          {
+            $match: {
+              _id: new ObjectId(sale.productID)
+            }
+          },
+          {
+            $lookup: {
+              from: 'brands',
+              localField: 'BrandID',
+              foreignField: '_id',
+              as: 'BrandID'
+            }
+          },
+          {
+            $unwind: {
+              path: "$BrandID",
+              preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+            }
+          },
+          {
+            $project: {
+              userID: 1,
+              name: 1,
+              manufacturer: 1,
+              stock: 1,
+              description: 1,
+              productCode: 1,
+              BrandID: 1,
+              isActive: 1,
+              createdAt: 1,
+              updatedAt: 1
+            },
+          }];
+
+        const productInfos = await SecondaryProduct.aggregate(aggregationPiepline);
+        if (productInfos?.length > 0) {
+          payload.productName.push(productInfos[0]?.name || "")
+          payload.qty.push(sale.stockSold || "")
+          payload.brandName.push(productInfos[0]?.BrandID?.name || "")
+        }
+      }));
+    generatePDFfromHTML(invoiceBillMultipleItems(payload), res);
+  } catch (error) {
+    console.log('error in salePdfDownload', error)
+  }
+}
+
+module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount, salePdfDownload, saleMultileItemsPdfDownload, updateSelectedSale };

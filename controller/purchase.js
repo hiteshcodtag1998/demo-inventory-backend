@@ -7,6 +7,8 @@ const purchaseStock = require("./purchaseStock");
 const { addHistoryData } = require("./history");
 const { SecondaryProduct } = require("../models/product");
 const { ObjectId } = require('mongodb');
+const { SecondaryWarehouse } = require("../models/warehouses");
+const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
 
 // Add Purchase Details
 const addPurchase = async (req, res) => {
@@ -52,11 +54,19 @@ const addPurchase = async (req, res) => {
         const availableStockPayload = {
           warehouseID: product.warehouseID,
           productID: product.productID,
-          stock: product.quantityPurchased
+          $inc: {
+            stock: product.quantityPurchased  // Increment the stock by the quantity purchased
+          }
         }
 
-        const stocksRes = await SecondaryAvailableStock.insertMany([availableStockPayload]);
-        await PrimaryAvailableStock.insertMany(stocksRes)
+        const stocksRes = await SecondaryAvailableStock.updateOne({
+          warehouseID: product.warehouseID,
+          productID: product.productID,
+        }, availableStockPayload, { upsert: true });
+        await PrimaryAvailableStock.updateOne({
+          warehouseID: product.warehouseID,
+          productID: product.productID,
+        }, stocksRes, { upsert: true });
         // End update in available stock
 
         purchaseProduct = { ...purchaseProduct._doc, HistoryID: secondaryResult?.[0]?._id }
@@ -261,4 +271,81 @@ const purchasePdfDownload = async (req, res) => {
   }
 }
 
-module.exports = { addPurchase, getPurchaseData, getTotalPurchaseAmount, purchasePdfDownload, updateSelectedPurchaase };
+const purchaseMultileItemsPdfDownload = async (req, res) => {
+  try {
+    const prchases = req.body;
+
+    // const payload = {
+    //   title: "Purchase Note",
+    //   supplierName: req.body?.SupplierName || "",
+    //   storeName: req.body?.warehouseID?.name || "",
+    //   qty: req.body?.QuantityPurchased || "",
+    //   productName: req.body?.ProductID?.name || "",
+    //   brandName: req.body?.BrandID?.name || "",
+    //   referenceNo: req.body?.referenceNo || ""
+    // }
+
+    const payload = {
+      title: "Purchase Note",
+      supplierName: req.body?.[0]?.SupplierName || "",
+      qty: [],
+      productName: [],
+      brandName: [],
+      referenceNo: req.body?.[0]?.referenceNo || ""
+    }
+
+    if (req.body?.[0]?.warehouseID) {
+      const warehouseInfos = await SecondaryWarehouse.findOne({ _id: new ObjectId(req.body?.[0]?.warehouseID) }).lean();
+      payload.storeName = warehouseInfos?.name || ""
+    }
+    await Promise.all(
+      prchases.map(async (purchase) => {
+        const aggregationPiepline = [
+          {
+            $match: {
+              _id: new ObjectId(purchase.productID)
+            }
+          },
+          {
+            $lookup: {
+              from: 'brands',
+              localField: 'BrandID',
+              foreignField: '_id',
+              as: 'BrandID'
+            }
+          },
+          {
+            $unwind: {
+              path: "$BrandID",
+              preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
+            }
+          },
+          {
+            $project: {
+              userID: 1,
+              name: 1,
+              manufacturer: 1,
+              stock: 1,
+              description: 1,
+              productCode: 1,
+              BrandID: 1,
+              isActive: 1,
+              createdAt: 1,
+              updatedAt: 1
+            },
+          }];
+
+        const productInfos = await SecondaryProduct.aggregate(aggregationPiepline);
+        if (productInfos?.length > 0) {
+          payload.productName.push(productInfos[0]?.name || "")
+          payload.qty.push(purchase.quantityPurchased || "")
+          payload.brandName.push(productInfos[0]?.BrandID?.name || "")
+        }
+      }));
+    generatePDFfromHTML(invoiceBillMultipleItems(payload), res);
+  } catch (error) {
+    console.log('error in productPdfDownload', error)
+  }
+}
+
+module.exports = { addPurchase, getPurchaseData, getTotalPurchaseAmount, purchasePdfDownload, purchaseMultileItemsPdfDownload, updateSelectedPurchaase };

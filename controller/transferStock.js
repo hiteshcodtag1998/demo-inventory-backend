@@ -1,9 +1,11 @@
 const { PrimaryTransferStock, SecondaryTransferStock } = require("../models/transferStock");
 const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
-const ROLES = require("../utils/constant");
 const { ObjectId } = require('mongodb');
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
+const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
+const { SecondaryProduct } = require("../models/product");
+const { addHistoryData } = require("./history");
 
 // Add TransferStock Details
 const addTransferStock = async (req, res) => {
@@ -47,16 +49,34 @@ const addTransferStock = async (req, res) => {
             // ReceivingLocation: req.body.receivingLocation
         });
 
-        addTransferStockDetails
+        const transferData = await addTransferStockDetails
             .save()
-            .then(async (result) => {
-                await PrimaryTransferStock.insertMany([result]).catch(err => console.log('Err', err))
-                // purchaseStock(req.body.productID, req.body.quantityPurchased);
-                res.status(200).send(result);
-            })
-            .catch((err) => {
-                res.status(402).send(err);
-            });
+        // .then(async (result) => {
+        //     await PrimaryTransferStock.insertMany([result]).catch(err => console.log('Err', err))
+        //     // purchaseStock(req.body.productID, req.body.quantityPurchased);
+        //     res.status(200).send(result);
+        // })
+        // .catch((err) => {
+        //     res.status(402).send(err);
+        // });
+
+        const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+        // Start History Data
+        const productInfo = await SecondaryProduct.findOne({ _id: transferData.productID })
+        const historyPayload = {
+            productID: transferData.productID,
+            saleID: transferData._id,
+            description: `${productInfo?.name || ""} product transfer ${req.body.quantityPurchased ? `(No of transfer product: ${req.body.quantityPurchased})` : ""}`,
+            type: HISTORY_TYPE.ADD,
+            createdById: requestby,
+            updatedById: requestby
+        };
+
+        await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
+        // End History Data
+        await PrimaryTransferStock.insertMany([transferData]).catch(err => console.log('Err', err))
+
+        res.status(200).send(transferData);
     } catch (err) {
         console.log('err', err)
         res.status(500).send({ err, message: err?.message || "" });

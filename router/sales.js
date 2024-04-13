@@ -17,6 +17,8 @@ app.post("/sale-pdf-download", sales.salePdfDownload)
 // Update Selected sale
 app.post("/update", sales.updateSelectedSale);
 
+app.post("/sale-multipleitems-pdf-download", sales.saleMultileItemsPdfDownload)
+
 module.exports = app;
 
 

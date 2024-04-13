@@ -12,6 +12,8 @@ app.get("/get/totalpurchaseamount", purchase.getTotalPurchaseAmount);
 
 app.post("/purchase-pdf-download", purchase.purchasePdfDownload)
 
+app.post("/purchase-multipleitems-pdf-download", purchase.purchaseMultileItemsPdfDownload)
+
 // Update Selected Purchase
 app.post("/update", purchase.updateSelectedPurchaase);
 

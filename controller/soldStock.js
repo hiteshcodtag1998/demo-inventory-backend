@@ -2,7 +2,7 @@ const Sales = require("../models/sales");
 const { SecondaryProduct, PrimaryProduct } = require("../models/product");
 
 
-const soldStock = async (productID, stockSoldData, isUpdate = false) => {
+const soldStock = async (productID, stockSoldData, isUpdate = false, beforeStock = 0) => {
 
   // Updating sold stock
   try {
@@ -11,7 +11,7 @@ const soldStock = async (productID, stockSoldData, isUpdate = false) => {
     let myUpdatedStock = myProductData?.stock ? (myProductData?.stock - stockSoldData) : 0;
 
     if (isUpdate) {
-      myUpdatedStock = myProductData?.stock ? (myProductData?.stock + myProductData?.stock - stockSoldData) : 0;
+      myUpdatedStock = myProductData?.stock ? ((myProductData?.stock + beforeStock) - stockSoldData) : 0;
     }
 
     await SecondaryProduct.findByIdAndUpdate(

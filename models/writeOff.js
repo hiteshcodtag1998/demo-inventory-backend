@@ -43,6 +43,10 @@ const WriteOffSchema = new mongoose.Schema(
         reason: {
             type: String,
         },
+        HistoryID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "history"
+        },
         isActive: {
             type: Boolean,
             default: true
