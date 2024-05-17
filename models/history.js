@@ -41,6 +41,9 @@ const HistorySchema = new mongoose.Schema(
             ref: 'users',
             default: null
         },
+        historyDate: {
+            type: Number
+        },
         isActive: {
             type: Boolean,
             default: true

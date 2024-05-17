@@ -9,6 +9,7 @@ const { SecondaryProduct } = require("../models/product");
 const { ObjectId } = require('mongodb');
 const { SecondaryWarehouse } = require("../models/warehouses");
 const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
+const moment = require("moment");
 
 // Add Purchase Details
 const addPurchase = async (req, res) => {
@@ -43,8 +44,10 @@ const addPurchase = async (req, res) => {
           description: `${productInfo?.name || ""} product purchased ${product.quantityPurchased ? `(No of purchase: ${product.quantityPurchased})` : ""}`,
           type: HISTORY_TYPE.ADD,
           createdById: requestby,
+          historyDate: moment(product.purchaseDate, "YYYY-MM-DD").valueOf(),
           updatedById: requestby
         };
+        console.log('historyPayload', historyPayload)
 
 
         const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
@@ -214,8 +217,10 @@ const updateSelectedPurchaase = async (req, res) => {
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,
-      historyID: updatedResult?.HistoryID || ""
+      historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD").valueOf(),
+      // historyID: updatedResult?.HistoryID || ""
     };
+    console.log('historyPayload', historyPayload)
 
     await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
     // End History Data

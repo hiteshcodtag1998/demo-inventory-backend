@@ -14,4 +14,7 @@ app.delete("/delete/:id", history.deleteSelectedHistory);
 // Update Selected History
 app.post("/update", history.updateSelectedHistory);
 
+// Delete Selected History Item
+app.delete("/delete/:id", history.deleteSelectedHistory);
+
 module.exports = app;

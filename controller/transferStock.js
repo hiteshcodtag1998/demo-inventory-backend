@@ -6,6 +6,7 @@ const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
 const { SecondaryProduct } = require("../models/product");
 const { addHistoryData } = require("./history");
+const moment = require("moment");
 
 // Add TransferStock Details
 const addTransferStock = async (req, res) => {
@@ -68,6 +69,7 @@ const addTransferStock = async (req, res) => {
             saleID: transferData._id,
             description: `${productInfo?.name || ""} product transfer ${req.body.quantityPurchased ? `(No of transfer product: ${req.body.quantityPurchased})` : ""}`,
             type: HISTORY_TYPE.ADD,
+            historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD").valueOf(),
             createdById: requestby,
             updatedById: requestby
         };

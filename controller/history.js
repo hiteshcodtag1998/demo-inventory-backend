@@ -15,8 +15,14 @@ const addHistory = async (req, res) => {
 // Get All History
 const getAllHistory = async (req, res) => {
     let findAllHistory;
+    const filter = {};
+
+    // if (req?.headers?.role !== ROLES.SUPER_ADMIN) filter.isActive = false
 
     const pipeline = [
+        {
+            $match: filter
+        },
         {
             $lookup: {
                 from: 'users',
@@ -31,7 +37,7 @@ const getAllHistory = async (req, res) => {
                 preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
             }
         },
-        { $sort: { _id: -1 } }
+        { $sort: { historyDate: 1 } }
     ];
 
     if (req?.headers?.role === ROLES.SUPER_ADMIN)
@@ -43,33 +49,16 @@ const getAllHistory = async (req, res) => {
 
 // Delete Selected History
 const deleteSelectedHistory = async (req, res) => {
-    const deleteProduct = await SecondaryHistory.deleteOne(
-        { _id: req.params.id }
+    const deleteHistory = await SecondaryHistory.findByIdAndUpdate(req.params.id,
+        { isActive: false }
     ).then(async () => {
         await PrimaryHistory.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
             console.log('Primary product error')
         })
     });
 
-    const deletePurchaseProduct = await SecondaryPurchase.deleteOne(
-        { ProductID: req.params.id }
-    ).then(async () => {
-        await PrimaryPurchase.findByIdAndUpdate({ ProductID: req.params.id }, { isActive: false }).catch(() => {
-            console.log('Primary purchase error')
-        })
-    });
-
-    const deleteSaleProduct = await SecondarySales.deleteOne(
-        { ProductID: req.params.id }
-    ).then(async () => {
-        await PrimarySales.findByIdAndUpdate({ ProductID: req.params.id }, { isActive: false }).catch(() => {
-            console.log('Primary sales error')
-        })
-    });
-
     res.json({
-        deleteProduct,
-        deletePurchaseProduct, deleteSaleProduct
+        deleteHistory,
     });
 };
 
@@ -100,6 +89,7 @@ const updateSelectedHistory = async (req, res) => {
 const addHistoryData = async (data, role = null, type = null, method = null) => {
 
     try {
+        console.log('data', data)
         let secondaryResult = data
         let primaryResult;
         let updatedSecondaryPayload = { ...data }

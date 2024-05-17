@@ -10,6 +10,7 @@ const { ObjectId } = require('mongodb');
 
 const { v4: uuidv4 } = require('uuid');
 const { PrimaryAvailableStock, SecondaryAvailableStock } = require("../models/availableStock");
+const moment = require("moment");
 
 // Add Post
 const addProduct = async (req, res) => {
@@ -41,7 +42,8 @@ const addProduct = async (req, res) => {
           type: HISTORY_TYPE.ADD,
           productCode,
           createdById: requestby,
-          updatedById: requestby
+          updatedById: requestby,
+          historyDate: moment().valueOf()
         };
 
         const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);

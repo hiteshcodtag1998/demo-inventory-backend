@@ -9,6 +9,7 @@ const { ObjectId } = require('mongodb');
 const { addHistoryData } = require("./history");
 const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
 const { SecondaryWarehouse } = require("../models/warehouses");
+const moment = require("moment");
 
 // Add Sales
 const addSales = async (req, res) => {
@@ -57,6 +58,7 @@ const addSales = async (req, res) => {
             saleID: salesProduct._id,
             description: `${productInfo?.name || ""} product sold ${sale?.stockSold ? `(No of sale: ${sale?.stockSold})` : ""}`,
             type: HISTORY_TYPE.ADD,
+            historyDate: moment(sale.saleDate, "YYYY-MM-DD").valueOf(),
             createdById: requestby,
             updatedById: requestby
           };
@@ -285,6 +287,7 @@ const updateSelectedSale = async (req, res) => {
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,
+      historyDate: moment(req.body.saleDate, "YYYY-MM-DD").valueOf(),
       historyID: updatedResult?.HistoryID || ""
     };
 
