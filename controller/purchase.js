@@ -62,14 +62,18 @@ const addPurchase = async (req, res) => {
           }
         }
 
-        const stocksRes = await SecondaryAvailableStock.updateOne({
+        await SecondaryAvailableStock.updateOne({
           warehouseID: product.warehouseID,
           productID: product.productID,
         }, availableStockPayload, { upsert: true });
+        const secRes = await SecondaryAvailableStock.findOne({
+          warehouseID: product.warehouseID,
+          productID: product.productID,
+        })
         await PrimaryAvailableStock.updateOne({
           warehouseID: product.warehouseID,
           productID: product.productID,
-        }, stocksRes, { upsert: true });
+        }, secRes, { upsert: true });
         // End update in available stock
 
         purchaseProduct = { ...purchaseProduct._doc, HistoryID: secondaryResult?.[0]?._id }
@@ -218,7 +222,7 @@ const updateSelectedPurchaase = async (req, res) => {
       createdById: requestby,
       updatedById: requestby,
       historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD").valueOf(),
-      // historyID: updatedResult?.HistoryID || ""
+      historyID: updatedResult?.HistoryID || ""
     };
     console.log('historyPayload', historyPayload)
 
