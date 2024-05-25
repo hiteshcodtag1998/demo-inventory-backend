@@ -15,7 +15,7 @@ const addHistory = async (req, res) => {
 // Get All History
 const getAllHistory = async (req, res) => {
     let findAllHistory;
-    const filter = { isActive: false };
+    const filter = { isActive: true };
 
     // if (req?.headers?.role !== ROLES.SUPER_ADMIN) filter.isActive = false
 
