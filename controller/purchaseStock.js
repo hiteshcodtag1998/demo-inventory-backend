@@ -24,7 +24,7 @@ const purchaseStock = async (productID, purchaseStockData, isUpdate = false) => 
     let primaryUpdatedStock = Number(primaryProductData.stock) + Number(purchaseStockData);
 
     if (isUpdate) {
-      secondaryUpdatedStock = Number(primaryProductData.stock) - Number(primaryProductData.stock) + Number(purchaseStockData);
+      primaryUpdatedStock = Number(primaryProductData.stock) - Number(primaryProductData.stock) + Number(purchaseStockData);
     }
 
     await PrimaryProduct.findByIdAndUpdate(
