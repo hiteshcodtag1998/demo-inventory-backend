@@ -37,7 +37,7 @@ const getAllHistory = async (req, res) => {
                 preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
             }
         },
-        { $sort: { historyDate: 1 } }
+        { $sort: { historyDate: -1 } }
     ];
 
     if (req?.headers?.role === ROLES.SUPER_ADMIN)
