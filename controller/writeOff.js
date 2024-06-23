@@ -54,7 +54,7 @@ const addWriteOff = async (req, res) => {
                     const productInfo = await SecondaryProduct.findOne({ _id: salesProduct.ProductID })
                     const historyPayload = {
                         productID: salesProduct.ProductID,
-                        saleID: salesProduct._id,
+                        writeOffID: salesProduct._id,
                         description: `${productInfo?.name || ""} product writeoff ${sale?.stockSold ? `(No of writeoff: ${sale?.stockSold})` : ""}`,
                         type: HISTORY_TYPE.ADD,
                         historyDate: moment(sale.saleDate, "YYYY-MM-DD").valueOf(),
