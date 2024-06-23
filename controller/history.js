@@ -86,52 +86,60 @@ const deleteSelectedHistory = async (req, res) => {
         });
 
         const secondaryProductData = await SecondaryProduct.findOne({ _id: findHistory?.productID });
-        console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
-        let secondaryUpdatedStock = Number(secondaryProductData.stock) - Number(secondaryPurchaseInfos?.QuantityPurchased || 0);
+        if (secondaryProductData?.stock) {
+            console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
+            let secondaryUpdatedStock = Number(secondaryProductData.stock) - Number(secondaryPurchaseInfos?.QuantityPurchased || 0);
 
-        await SecondaryProduct.findByIdAndUpdate(
-            { _id: findHistory?.productID },
-            {
-                stock: secondaryUpdatedStock,
-            },
-            { new: true }
-        );
+            await SecondaryProduct.findByIdAndUpdate(
+                { _id: findHistory?.productID },
+                {
+                    stock: secondaryUpdatedStock,
+                },
+                { new: true }
+            );
+        }
 
         const secondaryAvailableData = await SecondaryAvailableStock.findOne({ productID: findHistory?.productID, warehouseID: secondaryPurchaseInfos?.warehouseID });
-        console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
-        let secondaryAvailableStock = Number(secondaryAvailableData.stock) - Number(secondaryPurchaseInfos?.QuantityPurchased || 0);
+        if (secondaryAvailableData?.stock) {
+            console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
+            let secondaryAvailableStock = Number(secondaryAvailableData.stock) - Number(secondaryPurchaseInfos?.QuantityPurchased || 0);
 
-        await SecondaryAvailableStock.findByIdAndUpdate(
-            { _id: secondaryAvailableData?._id },
-            {
-                stock: secondaryAvailableStock,
-            },
-            { new: true }
-        );
+            await SecondaryAvailableStock.findByIdAndUpdate(
+                { _id: secondaryAvailableData?._id },
+                {
+                    stock: secondaryAvailableStock,
+                },
+                { new: true }
+            );
+        }
 
         // Primary Product
         const primaryProductData = await PrimaryProduct.findOne({ _id: findHistory?.productID });
-        let primaryUpdatedStock = Number(primaryProductData.stock) - Number(primaryPurchaseInfos?.QuantityPurchased);
+        if (primaryProductData?.stock) {
+            let primaryUpdatedStock = Number(primaryProductData.stock) - Number(primaryPurchaseInfos?.QuantityPurchased);
 
-        await PrimaryProduct.findByIdAndUpdate(
-            { _id: findHistory?.productID },
-            {
-                stock: primaryUpdatedStock,
-            },
-            { new: true }
-        );
+            await PrimaryProduct.findByIdAndUpdate(
+                { _id: findHistory?.productID },
+                {
+                    stock: primaryUpdatedStock,
+                },
+                { new: true }
+            );
+        }
 
         const primaryAvailableData = await PrimaryAvailableStock.findOne({ productID: findHistory?.productID, warehouseID: primaryPurchaseInfos?.warehouseID });
         console.log('secondaryProductData', secondaryProductData, primaryPurchaseInfos)
-        let primaryAvailableStock = Number(primaryAvailableData.stock) - Number(primaryPurchaseInfos?.QuantityPurchased || 0);
+        if (primaryAvailableData?.stock) {
+            let primaryAvailableStock = Number(primaryAvailableData.stock) - Number(primaryPurchaseInfos?.QuantityPurchased || 0);
 
-        await PrimaryAvailableStock.findByIdAndUpdate(
-            { _id: primaryAvailableData?._id },
-            {
-                stock: primaryAvailableStock,
-            },
-            { new: true }
-        );
+            await PrimaryAvailableStock.findByIdAndUpdate(
+                { _id: primaryAvailableData?._id },
+                {
+                    stock: primaryAvailableStock,
+                },
+                { new: true }
+            );
+        }
     }
 
     if (findHistory?.saleID) {
@@ -150,51 +158,59 @@ const deleteSelectedHistory = async (req, res) => {
 
         const secondaryProductData = await SecondaryProduct.findOne({ _id: findHistory?.productID });
         console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
-        let secondaryUpdatedStock = Number(secondaryProductData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
+        if (secondaryProductData?.stock) {
+            let secondaryUpdatedStock = Number(secondaryProductData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
 
-        await SecondaryProduct.findByIdAndUpdate(
-            { _id: findHistory?.productID },
-            {
-                stock: secondaryUpdatedStock,
-            },
-            { new: true }
-        );
+            await SecondaryProduct.findByIdAndUpdate(
+                { _id: findHistory?.productID },
+                {
+                    stock: secondaryUpdatedStock,
+                },
+                { new: true }
+            );
+        }
 
         const secondaryAvailableData = await SecondaryAvailableStock.findOne({ productID: findHistory?.productID, warehouseID: secondaryPurchaseInfos?.warehouseID });
         console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
-        let secondaryAvailableStock = Number(secondaryAvailableData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
+        if (secondaryAvailableData?.stock) {
+            let secondaryAvailableStock = Number(secondaryAvailableData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
 
-        await SecondaryAvailableStock.findByIdAndUpdate(
-            { _id: secondaryAvailableData?._id },
-            {
-                stock: secondaryAvailableStock,
-            },
-            { new: true }
-        );
+            await SecondaryAvailableStock.findByIdAndUpdate(
+                { _id: secondaryAvailableData?._id },
+                {
+                    stock: secondaryAvailableStock,
+                },
+                { new: true }
+            );
+        }
 
         // Primary Product
         const primaryProductData = await PrimaryProduct.findOne({ _id: findHistory?.productID });
-        let primaryUpdatedStock = Number(primaryProductData.stock) + Number(primaryPurchaseInfos?.StockSold);
+        if (primaryProductData?.stock) {
+            let primaryUpdatedStock = Number(primaryProductData.stock) + Number(primaryPurchaseInfos?.StockSold);
 
-        await PrimaryProduct.findByIdAndUpdate(
-            { _id: findHistory?.productID },
-            {
-                stock: primaryUpdatedStock,
-            },
-            { new: true }
-        );
+            await PrimaryProduct.findByIdAndUpdate(
+                { _id: findHistory?.productID },
+                {
+                    stock: primaryUpdatedStock,
+                },
+                { new: true }
+            );
+        }
 
         const primaryAvailableData = await PrimaryAvailableStock.findOne({ productID: findHistory?.productID, warehouseID: primaryPurchaseInfos?.warehouseID });
         console.log('secondaryProductData', secondaryProductData, primaryPurchaseInfos)
-        let primaryAvailableStock = Number(primaryAvailableData.stock) + Number(primaryPurchaseInfos?.StockSold || 0);
+        if (primaryAvailableData?.stock) {
+            let primaryAvailableStock = Number(primaryAvailableData.stock) + Number(primaryPurchaseInfos?.StockSold || 0);
 
-        await PrimaryAvailableStock.findByIdAndUpdate(
-            { _id: primaryAvailableData?._id },
-            {
-                stock: primaryAvailableStock,
-            },
-            { new: true }
-        );
+            await PrimaryAvailableStock.findByIdAndUpdate(
+                { _id: primaryAvailableData?._id },
+                {
+                    stock: primaryAvailableStock,
+                },
+                { new: true }
+            );
+        }
     }
 
     if (findHistory?.writeOffID) {
@@ -213,51 +229,59 @@ const deleteSelectedHistory = async (req, res) => {
 
         const secondaryProductData = await SecondaryProduct.findOne({ _id: findHistory?.productID });
         console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
-        let secondaryUpdatedStock = Number(secondaryProductData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
+        if (secondaryProductData?.stock) {
+            let secondaryUpdatedStock = Number(secondaryProductData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
 
-        await SecondaryProduct.findByIdAndUpdate(
-            { _id: findHistory?.productID },
-            {
-                stock: secondaryUpdatedStock,
-            },
-            { new: true }
-        );
+            await SecondaryProduct.findByIdAndUpdate(
+                { _id: findHistory?.productID },
+                {
+                    stock: secondaryUpdatedStock,
+                },
+                { new: true }
+            );
+        }
 
         const secondaryAvailableData = await SecondaryAvailableStock.findOne({ productID: findHistory?.productID, warehouseID: secondaryPurchaseInfos?.warehouseID });
         console.log('secondaryProductData', secondaryProductData, secondaryPurchaseInfos)
-        let secondaryAvailableStock = Number(secondaryAvailableData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
+        if (secondaryAvailableData?.stock) {
+            let secondaryAvailableStock = Number(secondaryAvailableData.stock) + Number(secondaryPurchaseInfos?.StockSold || 0);
 
-        await SecondaryAvailableStock.findByIdAndUpdate(
-            { _id: secondaryAvailableData?._id },
-            {
-                stock: secondaryAvailableStock,
-            },
-            { new: true }
-        );
+            await SecondaryAvailableStock.findByIdAndUpdate(
+                { _id: secondaryAvailableData?._id },
+                {
+                    stock: secondaryAvailableStock,
+                },
+                { new: true }
+            );
+        }
 
         // Primary Product
         const primaryProductData = await PrimaryProduct.findOne({ _id: findHistory?.productID });
-        let primaryUpdatedStock = Number(primaryProductData.stock) + Number(primaryPurchaseInfos?.StockSold);
+        if (primaryProductData?.stock) {
+            let primaryUpdatedStock = Number(primaryProductData.stock) + Number(primaryPurchaseInfos?.StockSold);
 
-        await PrimaryProduct.findByIdAndUpdate(
-            { _id: findHistory?.productID },
-            {
-                stock: primaryUpdatedStock,
-            },
-            { new: true }
-        );
+            await PrimaryProduct.findByIdAndUpdate(
+                { _id: findHistory?.productID },
+                {
+                    stock: primaryUpdatedStock,
+                },
+                { new: true }
+            );
+        }
 
         const primaryAvailableData = await PrimaryAvailableStock.findOne({ productID: findHistory?.productID, warehouseID: primaryPurchaseInfos?.warehouseID });
         console.log('secondaryProductData', secondaryProductData, primaryPurchaseInfos)
-        let primaryAvailableStock = Number(primaryAvailableData.stock) + Number(primaryPurchaseInfos?.StockSold || 0);
+        if (primaryAvailableData?.stock) {
+            let primaryAvailableStock = Number(primaryAvailableData.stock) + Number(primaryPurchaseInfos?.StockSold || 0);
 
-        await PrimaryAvailableStock.findByIdAndUpdate(
-            { _id: primaryAvailableData?._id },
-            {
-                stock: primaryAvailableStock,
-            },
-            { new: true }
-        );
+            await PrimaryAvailableStock.findByIdAndUpdate(
+                { _id: primaryAvailableData?._id },
+                {
+                    stock: primaryAvailableStock,
+                },
+                { new: true }
+            );
+        }
     }
 
     const deleteHistory = await SecondaryHistory.findByIdAndUpdate(req.params.id,
