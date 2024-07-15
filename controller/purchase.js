@@ -44,7 +44,7 @@ const addPurchase = async (req, res) => {
           description: `${productInfo?.name || ""} product purchased ${product.quantityPurchased ? `(No of purchase: ${product.quantityPurchased})` : ""}`,
           type: HISTORY_TYPE.ADD,
           createdById: requestby,
-          historyDate: moment(product.purchaseDate, "YYYY-MM-DD").valueOf(),
+          historyDate: moment(product.purchaseDate, "YYYY-MM-DD HH:mm").valueOf(),
           updatedById: requestby
         };
         console.log('historyPayload', historyPayload)
@@ -221,7 +221,7 @@ const updateSelectedPurchaase = async (req, res) => {
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,
-      historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD").valueOf(),
+      historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD HH:mm").valueOf(),
       historyID: updatedResult?.HistoryID || ""
     };
     console.log('historyPayload', historyPayload)

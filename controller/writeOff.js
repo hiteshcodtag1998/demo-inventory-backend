@@ -57,7 +57,7 @@ const addWriteOff = async (req, res) => {
                         writeOffID: salesProduct._id,
                         description: `${productInfo?.name || ""} product writeoff ${sale?.stockSold ? `(No of writeoff: ${sale?.stockSold})` : ""}`,
                         type: HISTORY_TYPE.ADD,
-                        historyDate: moment(sale.saleDate, "YYYY-MM-DD").valueOf(),
+                        historyDate: moment(sale.saleDate, "YYYY-MM-DD HH:mm").valueOf(),
                         createdById: requestby,
                         updatedById: requestby
                     };
@@ -219,6 +219,9 @@ const writeOffPdfDownload = (req, res) => {
 // Update Selected WriteOff
 const updateSelectedWriteOff = async (req, res) => {
     try {
+        const findSecondarySale = await SecondaryWriteOff.findByIdAndUpdate(
+            { _id: req.body.writeOffID });
+
         const existsAvailableStock = await SecondaryAvailableStock.findOne({
             warehouseID: req.body.warehouseID,
             productID: req.body.productID,
@@ -226,7 +229,7 @@ const updateSelectedWriteOff = async (req, res) => {
 
         const beforeWriteOffData = await SecondaryWriteOff.findOne({ _id: req.body.writeOffID });
 
-        if (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold) {
+        if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold)) {
             throw new Error("Stock is not available")
         }
 
@@ -256,7 +259,7 @@ const updateSelectedWriteOff = async (req, res) => {
             createdById: requestby,
             updatedById: requestby,
             historyID: updatedResult?.HistoryID || "",
-            historyDate: moment(req.body.saleDate, "YYYY-MM-DD").valueOf(),
+            historyDate: moment(req.body.saleDate, "YYYY-MM-DD HH:mm").valueOf(),
             description: `${productInfo?.name || ""} product writeOff updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
             type: HISTORY_TYPE.UPDATE,
         };

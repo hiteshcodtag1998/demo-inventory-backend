@@ -58,7 +58,7 @@ const addSales = async (req, res) => {
             saleID: salesProduct._id,
             description: `${productInfo?.name || ""} product sold ${sale?.stockSold ? `(No of sale: ${sale?.stockSold})` : ""}`,
             type: HISTORY_TYPE.ADD,
-            historyDate: moment(sale.saleDate, "YYYY-MM-DD").valueOf(),
+            historyDate: moment(sale.saleDate, "YYYY-MM-DD HH:mm").valueOf(),
             createdById: requestby,
             updatedById: requestby
           };
@@ -251,12 +251,17 @@ const salePdfDownload = (req, res) => {
 // Update Selected Sale
 const updateSelectedSale = async (req, res) => {
   try {
+
+    const findSecondarySale = await SecondarySales.findByIdAndUpdate(
+      { _id: req.body.saleID });
+
+
     const existsAvailableStock = await SecondaryAvailableStock.findOne({
       warehouseID: req.body.warehouseID,
       productID: req.body.productID,
     });
 
-    if (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold) {
+    if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold)) {
       throw new Error("Stock is not available")
     }
 
@@ -287,7 +292,7 @@ const updateSelectedSale = async (req, res) => {
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,
-      historyDate: moment(req.body.saleDate, "YYYY-MM-DD").valueOf(),
+      historyDate: moment(req.body.saleDate, "YYYY-MM-DD HH:mm").valueOf(),
       historyID: updatedResult?.HistoryID || ""
     };
 

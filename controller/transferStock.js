@@ -69,7 +69,7 @@ const addTransferStock = async (req, res) => {
             saleID: transferData._id,
             description: `${productInfo?.name || ""} product transfer ${req.body.quantityPurchased ? `(No of transfer product: ${req.body.quantityPurchased})` : ""}`,
             type: HISTORY_TYPE.ADD,
-            historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD").valueOf(),
+            historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD HH:mm").valueOf(),
             createdById: requestby,
             updatedById: requestby
         };
