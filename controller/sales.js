@@ -10,6 +10,7 @@ const { addHistoryData } = require("./history");
 const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
 const { SecondaryWarehouse } = require("../models/warehouses");
 const moment = require("moment-timezone");
+const { getTimezoneWiseDate } = require("../utils/handler");
 
 // Add Sales
 const addSales = async (req, res) => {
@@ -58,9 +59,7 @@ const addSales = async (req, res) => {
             saleID: salesProduct._id,
             description: `${productInfo?.name || ""} product sold ${sale?.stockSold ? `(No of sale: ${sale?.stockSold})` : ""}`,
             type: HISTORY_TYPE.ADD,
-            historyDate: moment(sale.saleDate, "YYYY-MM-DD HH:mm")
-              .tz(moment.tz.guess())
-              .valueOf(),
+            historyDate: getTimezoneWiseDate(sale.saleDate),
             createdById: requestby,
             updatedById: requestby
           };
@@ -294,9 +293,7 @@ const updateSelectedSale = async (req, res) => {
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,
-      historyDate: moment(req.body.saleDate, "YYYY-MM-DD HH:mm")
-        .tz(moment.tz.guess())
-        .valueOf(),
+      historyDate: getTimezoneWiseDate(req.body.saleDate),
       historyID: updatedResult?.HistoryID || ""
     };
 

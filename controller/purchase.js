@@ -10,6 +10,7 @@ const { ObjectId } = require('mongodb');
 const { SecondaryWarehouse } = require("../models/warehouses");
 const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
 const moment = require("moment-timezone");
+const { getTimezoneWiseDate } = require("../utils/handler");
 
 // Add Purchase Details
 const addPurchase = async (req, res) => {
@@ -38,15 +39,14 @@ const addPurchase = async (req, res) => {
         const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
         // Start History Data
         const productInfo = await SecondaryProduct.findOne({ _id: purchaseProduct.ProductID })
+
         const historyPayload = {
           productID: purchaseProduct.ProductID,
           purchaseID: purchaseProduct._id,
           description: `${productInfo?.name || ""} product purchased ${product.quantityPurchased ? `(No of purchase: ${product.quantityPurchased})` : ""}`,
           type: HISTORY_TYPE.ADD,
           createdById: requestby,
-          historyDate: moment(product.purchaseDate, "YYYY-MM-DD HH:mm")
-            .tz(moment.tz.guess())
-            .valueOf(),
+          historyDate: getTimezoneWiseDate(product.purchaseDate),
           updatedById: requestby
         };
         console.log('historyPayload', historyPayload)
@@ -223,9 +223,7 @@ const updateSelectedPurchaase = async (req, res) => {
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,
-      historyDate: moment(req.body.purchaseDate, "YYYY-MM-DD HH:mm")
-        .tz(moment.tz.guess())
-        .valueOf(),
+      historyDate: getTimezoneWiseDate(req.body.purchaseDate),
       historyID: updatedResult?.HistoryID || ""
     };
     console.log('historyPayload', historyPayload)
