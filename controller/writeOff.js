@@ -8,7 +8,7 @@ const { addHistoryData } = require("./history");
 const soldStock = require("./soldStock");
 const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/availableStock");
 const { ObjectId } = require('mongodb');
-const moment = require("moment");
+const moment = require("moment-timezone");
 
 // Add Purchase Details
 const addWriteOff = async (req, res) => {
@@ -57,7 +57,9 @@ const addWriteOff = async (req, res) => {
                         writeOffID: salesProduct._id,
                         description: `${productInfo?.name || ""} product writeoff ${sale?.stockSold ? `(No of writeoff: ${sale?.stockSold})` : ""}`,
                         type: HISTORY_TYPE.ADD,
-                        historyDate: moment(sale.saleDate, "YYYY-MM-DD HH:mm").valueOf(),
+                        historyDate: moment(sale.saleDate, "YYYY-MM-DD HH:mm")
+                            .tz(moment.tz.guess())
+                            .valueOf(),
                         createdById: requestby,
                         updatedById: requestby
                     };
@@ -259,7 +261,9 @@ const updateSelectedWriteOff = async (req, res) => {
             createdById: requestby,
             updatedById: requestby,
             historyID: updatedResult?.HistoryID || "",
-            historyDate: moment(req.body.saleDate, "YYYY-MM-DD HH:mm").valueOf(),
+            historyDate: moment(req.body.saleDate, "YYYY-MM-DD HH:mm")
+                .tz(moment.tz.guess())
+                .valueOf(),
             description: `${productInfo?.name || ""} product writeOff updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
             type: HISTORY_TYPE.UPDATE,
         };
