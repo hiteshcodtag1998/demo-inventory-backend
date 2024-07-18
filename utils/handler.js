@@ -1,10 +1,9 @@
 const moment = require("moment-timezone");
 
 const getTimezoneWiseDate = (date) => {
-    const parsedDate = moment(date, "YYYY-MM-DD HH:mm");
-    const localTimezoneDate = parsedDate.tz(moment.tz.guess());
-    const unixTimestamp = localTimezoneDate.valueOf();
-    return unixTimestamp
+    const parsedDate = moment.tz(date, "YYYY-MM-DD HH:mm", moment.tz.guess()); // Parse and treat the input as local time
+    const unixTimestamp = parsedDate.utc().valueOf(); // Convert to UTC timestamp
+    return unixTimestamp;
 }
 
 module.exports = {
