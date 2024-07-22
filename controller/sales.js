@@ -262,8 +262,19 @@ const updateSelectedSale = async (req, res) => {
       productID: req.body.productID,
     });
 
-    if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold)) {
+
+
+    // if (findSecondarySale?.StockSold !== req.body.stockSold) {
+    //   throw new Error("Stock is not available")
+    // } else
+    if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock)) {
       throw new Error("Stock is not available")
+    } else if (findSecondarySale?.StockSold !== req.body.stockSold && findSecondarySale?.StockSold < req.body.stockSold) {
+      const requestedStock = findSecondarySale?.StockSold - req.body.stockSold
+      const checkExistingData = existsAvailableStock?.stock + requestedStock
+      if (checkExistingData < 0) {
+        throw new Error("Stock is not available")
+      }
     }
 
     const updatedResult = await SecondarySales.findByIdAndUpdate(
@@ -302,10 +313,11 @@ const updateSelectedSale = async (req, res) => {
 
     // Start update in available stock
 
+    const updatedAvailableStock = (findSecondarySale?.StockSold - req.body.stockSold)
     const availableStockPayload = {
       warehouseID: req.body.warehouseID,
       productID: req.body.productID,
-      stock: req.body.stockSold
+      stock: existsAvailableStock?.stock + updatedAvailableStock
     }
 
     await SecondaryAvailableStock.findByIdAndUpdate(
@@ -313,7 +325,7 @@ const updateSelectedSale = async (req, res) => {
     await PrimaryAvailableStock.findByIdAndUpdate(
       { _id: existsAvailableStock._id }, availableStockPayload)
 
-    soldStock(req.body.productID, req.body.stockSold);
+    soldStock(req.body.productID, req.body.stockSold, true, findSecondarySale?.StockSold);
 
     // End update in available stock
 
@@ -345,6 +357,7 @@ const saleMultileItemsPdfDownload = async (req, res) => {
       const warehouseInfos = await SecondaryWarehouse.findOne({ _id: new ObjectId(req.body?.[0]?.warehouseID) }).lean();
       payload.storeName = warehouseInfos?.name || ""
     }
+
     await Promise.all(
       sales.map(async (sale) => {
         const aggregationPiepline = [

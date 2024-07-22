@@ -230,9 +230,19 @@ const updateSelectedWriteOff = async (req, res) => {
 
         const beforeWriteOffData = await SecondaryWriteOff.findOne({ _id: req.body.writeOffID });
 
-        if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold)) {
+        if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock)) {
             throw new Error("Stock is not available")
+        } else if (findSecondarySale?.StockSold !== req.body.stockSold && findSecondarySale?.StockSold < req.body.stockSold) {
+            const requestedStock = findSecondarySale?.StockSold - req.body.stockSold
+            const checkExistingData = existsAvailableStock?.stock + requestedStock
+            if (checkExistingData < 0) {
+                throw new Error("Stock is not available")
+            }
         }
+
+        // if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold)) {
+        //     throw new Error("Stock is not available")
+        // }
 
         const updatedResult = await SecondaryWriteOff.findByIdAndUpdate(
             { _id: req.body.writeOffID },
