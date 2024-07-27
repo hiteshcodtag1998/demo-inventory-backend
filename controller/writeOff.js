@@ -271,7 +271,7 @@ const updateSelectedWriteOff = async (req, res) => {
             updatedById: requestby,
             historyID: updatedResult?.HistoryID || "",
             historyDate: getTimezoneWiseDate(req.body.saleDate),
-            description: `${productInfo?.name || ""} product writeOff updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
+            description: `${productInfo?.name || ""} product writeOff added ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
             type: HISTORY_TYPE.UPDATE,
         };
 

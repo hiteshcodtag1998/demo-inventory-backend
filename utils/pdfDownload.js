@@ -1,7 +1,11 @@
 const pdf = require('html-pdf');
+const path = require('path');
+
+// Get the path to the locally installed PhantomJS binary
+const phantomPath = require('phantomjs-prebuilt').path;
 
 const generatePDFfromHTML = (htmlContent, res) => {
-    const options = { format: 'Letter' };
+    const options = { format: 'Letter', phantomPath };
 
     // Generate PDF from HTML content
     pdf.create(htmlContent, options).toBuffer((err, buffer) => {

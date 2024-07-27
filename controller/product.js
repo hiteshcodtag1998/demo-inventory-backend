@@ -206,7 +206,7 @@ const updateSelectedProduct = async (req, res) => {
 
     const historyPayload = {
       productID: updatedResult._id,
-      description: `${updatedResult?.name || ""} product updated`,
+      description: `${updatedResult?.name || ""} product added`,// updated`,
       type: HISTORY_TYPE.UPDATE,
       // productCode,
       createdById: requestby,
