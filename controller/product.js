@@ -68,7 +68,7 @@ const addProduct = async (req, res) => {
 // // Get All Products
 // const getAllProducts = async (req, res) => {
 //   let findAllProducts;
-//   if (req?.headers?.role === ROLES.SUPER_ADMIN)
+//   if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
 //     findAllProducts = await PrimaryProduct.find().sort({ _id: -1 });
 //   else
 //     findAllProducts = await SecondaryProduct.find().sort({ _id: -1 }); // -1 for descending;
@@ -132,7 +132,7 @@ const getAllProducts = async (req, res) => {
       },
     },
     { $sort: { _id: -1 } }];
-  if (req?.headers?.role === ROLES.SUPER_ADMIN)
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
     findAllProducts = await PrimaryProduct.aggregate(aggregationPiepline);
   else
     findAllProducts = await SecondaryProduct.aggregate(aggregationPiepline); // -1 for descending;
@@ -307,7 +307,7 @@ const searchProduct = async (req, res) => {
         $sort: { _id: -1 }
       }
     ];
-    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
       findAllProducts = await primaryModel
         .aggregate(pipeline);
     else
@@ -325,7 +325,7 @@ const searchProductByWarehouse = async (req, res) => {
     const searchTerm = req.query.selectWarehouse;
 
     let findAllProducts;
-    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
       findAllProducts = await PrimaryAvailableStock
         .aggregate([
           {
@@ -408,7 +408,7 @@ const getTotalCounts = async (req, res) => {
       secondaryModel = SecondaryAvailableStock
     }
 
-    if (req?.headers?.role === ROLES.SUPER_ADMIN) {
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN) {
       totalProductCounts = await PrimaryProduct.find().count()
       totalItemInWarehouse = await PrimaryAvailableStock.find(filter).count()
     }

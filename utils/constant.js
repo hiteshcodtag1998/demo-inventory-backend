@@ -1,6 +1,6 @@
 const ROLES = {
     ADMIN: 'Admin',
-    SUPER_ADMIN: 'SuperAdmin'
+    HIDE_MASTER_SUPER_ADMIN: 'HideMasterSuperAdmin'
 }
 
 const HISTORY_TYPE = {

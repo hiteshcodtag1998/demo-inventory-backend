@@ -6,7 +6,7 @@ const user = require("../controller/user");
 app.post("/add-admin-user", user.addAdminUser);
 
 // Add Super AdminUser
-app.post("/add-super-admin-user", user.addSuperAdminUser);
+app.post("/add-super-admin-user", user.addMasterSuperAdminUser);
 
 // Get All User
 app.get("/", user.getAllUsers)

@@ -160,7 +160,7 @@ const getTransferStockData = async (req, res) => {
             updatedAt: 1
         }
     }];
-    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
         findAllWriteOffData = await PrimaryTransferStock.aggregate(aggregationPiepline);
     else
         findAllWriteOffData = await SecondaryTransferStock.aggregate(aggregationPiepline); // -1 for descending;
@@ -171,7 +171,7 @@ const getTransferStockData = async (req, res) => {
 const getTotalPurchaseAmount = async (req, res) => {
     let totalPurchaseAmount = 0;
 
-    if (req?.headers?.role === ROLES.SUPER_ADMIN) {
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN) {
         const purchaseData = await PrimaryTransferStock.find();
         purchaseData.forEach((purchase) => {
             totalPurchaseAmount += purchase.TotalPurchaseAmount;

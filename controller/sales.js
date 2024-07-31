@@ -181,7 +181,7 @@ const getSalesData = async (req, res) => {
       }
     },
     { $sort: { _id: -1 } }];
-  if (req?.headers?.role === ROLES.SUPER_ADMIN)
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
     findAllSalesData = await PrimarySales.aggregate(aggregationPiepline);
   else
     findAllSalesData = await SecondarySales.aggregate(aggregationPiepline); // -1 for descending;
@@ -193,7 +193,7 @@ const getTotalSalesAmount = async (req, res) => {
   let totalSaleAmount = 0;
 
   let salesData = []
-  if (req?.headers?.role === ROLES.SUPER_ADMIN)
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
     salesData = await PrimarySales.find();
   else
     salesData = await SecondarySales.find();
@@ -209,7 +209,7 @@ const getTotalSalesAmount = async (req, res) => {
 const getMonthlySales = async (req, res) => {
   try {
     let sales = []
-    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
       sales = await PrimarySales.find();
     else
       sales = await SecondarySales.find();

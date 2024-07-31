@@ -26,7 +26,7 @@ const addBrand = async (req, res) => {
 // Get All Stores
 const getAllBrands = async (req, res) => {
     let findAllBrands;
-    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
         findAllBrands = await PrimaryBrand.find().sort({ _id: -1 });
     else
         findAllBrands = await SecondaryBrand.find().sort({ _id: -1 }); // -1 for descending;

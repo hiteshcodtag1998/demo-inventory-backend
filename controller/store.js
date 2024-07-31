@@ -24,7 +24,7 @@ const addStore = async (req, res) => {
 // Get All Stores
 const getAllStores = async (req, res) => {
   let findAllStores;
-  if (req?.headers?.role === ROLES.SUPER_ADMIN)
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
     findAllStores = await PrimaryStore.find().sort({ _id: -1 });
   else
     findAllStores = await SecondaryStore.find().sort({ _id: -1 }); // -1 for descending;

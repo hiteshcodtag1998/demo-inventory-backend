@@ -169,7 +169,7 @@ const getPurchaseData = async (req, res) => {
     }
   },
   { $sort: { _id: -1 } }];
-  if (req?.headers?.role === ROLES.SUPER_ADMIN)
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
     findAllPurchaseData = await PrimaryPurchase.aggregate(aggregationPiepline);
   else
     findAllPurchaseData = await SecondaryPurchase.aggregate(aggregationPiepline); // -1 for descending;
@@ -180,7 +180,7 @@ const getPurchaseData = async (req, res) => {
 const getTotalPurchaseAmount = async (req, res) => {
   let totalPurchaseAmount = 0;
 
-  if (req?.headers?.role === ROLES.SUPER_ADMIN) {
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN) {
     const purchaseData = await PrimaryPurchase.find();
     purchaseData.forEach((purchase) => {
       totalPurchaseAmount += purchase.TotalPurchaseAmount;

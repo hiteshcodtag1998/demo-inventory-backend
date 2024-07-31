@@ -48,7 +48,7 @@ const updateSelectedWarehouse = async (req, res) => {
 // Get All Stores
 const getAllWarehouses = async (req, res) => {
     let findAllWarehouses;
-    if (req?.headers?.role === ROLES.SUPER_ADMIN)
+    if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
         findAllWarehouses = await PrimaryWarehouse.find().sort({ _id: -1 });
     else
         findAllWarehouses = await SecondaryWarehouse.find().sort({ _id: -1 }); // -1 for descending;

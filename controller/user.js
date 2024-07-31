@@ -14,7 +14,7 @@ const addAdminUser = async (req, res) => {
 };
 
 // Add Super AdminUser
-const addSuperAdminUser = async (req, res) => {
+const addMasterSuperAdminUser = async (req, res) => {
     const user = new PrimaryUser(req.body);
 
     user.save().then((result) => {
@@ -47,4 +47,4 @@ const getAllUsers = async (req, res) => {
     res.json(findAllUsers);
 };
 
-module.exports = { addAdminUser, addSuperAdminUser, getAllUsers };
+module.exports = { addAdminUser, addMasterSuperAdminUser, getAllUsers };
