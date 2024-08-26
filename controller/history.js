@@ -343,7 +343,7 @@ const addHistoryData = async (data, role = null, type = null, method = null) => 
                 }
             } else {
                 secondaryResult = await SecondaryHistory.insertMany([updatedSecondaryPayload]).catch(err => console.log('Err', err))
-                primaryResult = await PrimaryHistory.insertMany([{ ...data, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+                primaryResult = await PrimaryHistory.insertMany([{ ...updatedSecondaryPayload, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
             }
         } else if (method === METHODS.UPDATE) {
             if (type === HISTORY_TYPE.DELETE) {

@@ -5,36 +5,42 @@ const purchaseStock = async (productID, purchaseStockData, isUpdate = false) => 
   try {
     // Secondary Product
     const secondaryProductData = await SecondaryProduct.findOne({ _id: productID });
-    let secondaryUpdatedStock = Number(secondaryProductData.stock) + Number(purchaseStockData);
 
-    if (isUpdate) {
-      const pendingStock = Number(secondaryProductData?.stock) - Number(purchaseStockData)
-      secondaryUpdatedStock = Number(secondaryProductData?.stock) + pendingStock;
+    if (secondaryProductData) {
+      let secondaryUpdatedStock = Number(secondaryProductData.stock) + Number(purchaseStockData);
+
+      if (isUpdate) {
+        const pendingStock = Number(secondaryProductData?.stock) - Number(purchaseStockData)
+        secondaryUpdatedStock = Number(secondaryProductData?.stock) + pendingStock;
+      }
+
+      await SecondaryProduct.findByIdAndUpdate(
+        { _id: productID },
+        {
+          stock: secondaryUpdatedStock,
+        },
+        { new: true }
+      );
     }
-
-    await SecondaryProduct.findByIdAndUpdate(
-      { _id: productID },
-      {
-        stock: secondaryUpdatedStock,
-      },
-      { new: true }
-    );
 
     // Primary Product
     const primaryProductData = await PrimaryProduct.findOne({ _id: productID });
-    let primaryUpdatedStock = Number(primaryProductData.stock) + Number(purchaseStockData);
 
-    if (isUpdate) {
-      primaryUpdatedStock = Number(primaryProductData.stock) - Number(primaryProductData.stock) + Number(purchaseStockData);
+    if (primaryProductData) {
+      let primaryUpdatedStock = Number(primaryProductData.stock) + Number(purchaseStockData);
+
+      if (isUpdate) {
+        primaryUpdatedStock = Number(primaryProductData.stock) - Number(primaryProductData.stock) + Number(purchaseStockData);
+      }
+
+      await PrimaryProduct.findByIdAndUpdate(
+        { _id: productID },
+        {
+          stock: primaryUpdatedStock,
+        },
+        { new: true }
+      );
     }
-
-    await PrimaryProduct.findByIdAndUpdate(
-      { _id: productID },
-      {
-        stock: primaryUpdatedStock,
-      },
-      { new: true }
-    );
   } catch (error) {
     console.error("Error updating Purchase stock ", error);
   }

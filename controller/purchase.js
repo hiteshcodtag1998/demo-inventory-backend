@@ -5,7 +5,7 @@ const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const purchaseStock = require("./purchaseStock");
 const { addHistoryData } = require("./history");
-const { SecondaryProduct } = require("../models/product");
+const { SecondaryProduct, PrimaryProduct } = require("../models/product");
 const { ObjectId } = require('mongodb');
 const { SecondaryWarehouse } = require("../models/warehouses");
 const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
@@ -198,66 +198,100 @@ const getTotalPurchaseAmount = async (req, res) => {
 // Update Selected Purchase
 const updateSelectedPurchaase = async (req, res) => {
   try {
-    const updatedResult = await SecondaryPurchase.findByIdAndUpdate(
-      { _id: req.body.purchaseID },
-      {
-        ProductID: req.body.productID,
-        QuantityPurchased: req.body.quantityPurchased,
-        PurchaseDate: req.body.purchaseDate,
-        SupplierName: req.body.supplierName,
-        StoreName: req.body.storeName,
-        BrandID: req.body.brandID,
-        warehouseID: req.body.warehouseID,
-        referenceNo: req.body?.referenceNo || ""
-      },
-      { new: true }
-    );
-
-    const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
-    // Start History Data
-    const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
-    const historyPayload = {
-      productID: updatedResult.ProductID,
-      purchaseID: updatedResult._id,
-      description: `${productInfo?.name || ""} product purchase added ${req.body?.quantityPurchased ? `(No of purchase: ${req.body?.quantityPurchased})` : ""}`,
-      type: HISTORY_TYPE.UPDATE,
-      createdById: requestby,
-      updatedById: requestby,
-      historyDate: getTimezoneWiseDate(req.body.purchaseDate),
-      historyID: updatedResult?.HistoryID || ""
-    };
-    console.log('historyPayload', historyPayload)
-
-    await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
-    // End History Data
-
-    // Start update in available stock
-    const existsAvailableStock = await SecondaryAvailableStock.findOne({
-      warehouseID: req.body.warehouseID,
-      productID: req.body.productID,
-    });
-
+    let updatedResult = null;
     const availableStockPayload = {
       warehouseID: req.body.warehouseID,
       productID: req.body.productID,
       stock: req.body.quantityPurchased
     }
 
-    await SecondaryAvailableStock.findByIdAndUpdate(
-      { _id: existsAvailableStock._id }, availableStockPayload)
-    await PrimaryAvailableStock.findByIdAndUpdate(
-      { _id: existsAvailableStock._id }, availableStockPayload)
+    /**
+     * This is for Super Admin and Admin
+     */
+    if (![ROLES.HIDE_MASTER_SUPER_ADMIN].includes(req?.headers?.role)) {
+
+      updatedResult = await SecondaryPurchase.findByIdAndUpdate(
+        { _id: req.body.purchaseID },
+        {
+          ProductID: req.body.productID,
+          QuantityPurchased: req.body.quantityPurchased,
+          PurchaseDate: req.body.purchaseDate,
+          SupplierName: req.body.supplierName,
+          StoreName: req.body.storeName,
+          BrandID: req.body.brandID,
+          warehouseID: req.body.warehouseID,
+          referenceNo: req.body?.referenceNo || ""
+        },
+        { new: true }
+      );
+
+      const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+      // Start History Data
+      const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
+      const historyPayload = {
+        productID: updatedResult.ProductID,
+        purchaseID: updatedResult._id,
+        description: `${productInfo?.name || ""} product purchase added ${req.body?.quantityPurchased ? `(No of purchase: ${req.body?.quantityPurchased})` : ""}`,
+        type: HISTORY_TYPE.UPDATE,
+        createdById: requestby,
+        updatedById: requestby,
+        historyDate: getTimezoneWiseDate(req.body.purchaseDate),
+        historyID: updatedResult?.HistoryID || ""
+      };
+
+      await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
+      // End History Data
+
+      // Start update in available stock
+      const existsAvailableStock = await SecondaryAvailableStock.findOne({
+        warehouseID: req.body.warehouseID,
+        productID: req.body.productID,
+      });
+      await SecondaryAvailableStock.findByIdAndUpdate(
+        { _id: existsAvailableStock._id }, availableStockPayload)
+      // End update in available stock
+
+    }
+    /**
+     * This is for Hide Super Admin
+     */
+    else {
+      // Start update in available stock
+      const existsAvailableStock = await PrimaryAvailableStock.findOne({
+        warehouseID: req.body.warehouseID,
+        productID: req.body.productID,
+      });
+      await PrimaryAvailableStock.findByIdAndUpdate(
+        { _id: existsAvailableStock._id }, availableStockPayload)
+      // End update in available stock
+
+      updatedResult = await PrimaryPurchase.findByIdAndUpdate({ _id: req.body.purchaseID }, {
+        QuantityPurchased: req.body.quantityPurchased,
+        PurchaseDate: req.body.purchaseDate,
+        SupplierName: req.body.supplierName,
+        referenceNo: req.body?.referenceNo || ""
+      })
+
+      const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+      // Start History Data
+      const productInfo = await PrimaryProduct.findOne({ _id: updatedResult.ProductID })
+      const historyPayload = {
+        productID: updatedResult.ProductID,
+        purchaseID: updatedResult._id,
+        description: `${productInfo?.name || ""} product purchase added ${req.body?.quantityPurchased ? `(No of purchase: ${req.body?.quantityPurchased})` : ""}`,
+        type: HISTORY_TYPE.UPDATE,
+        createdById: requestby,
+        updatedById: requestby,
+        historyDate: getTimezoneWiseDate(req.body.purchaseDate),
+        historyID: updatedResult?.HistoryID || ""
+      };
+
+      await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
+      // End History Data
+    }
 
     purchaseStock(req.body.productID, req.body.quantityPurchased, true);
 
-    // End update in available stock
-
-    await PrimaryPurchase.findByIdAndUpdate({ _id: req.body.purchaseID }, {
-      QuantityPurchased: req.body.quantityPurchased,
-      PurchaseDate: req.body.purchaseDate,
-      SupplierName: req.body.supplierName,
-      referenceNo: req.body?.referenceNo || ""
-    })
     res.json(updatedResult);
   } catch (error) {
     res.status(500).send({ error, message: error?.message || "" });
