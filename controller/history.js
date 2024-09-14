@@ -353,8 +353,14 @@ const addHistoryData = async (data, role = null, type = null, method = null) => 
                     if (type === HISTORY_TYPE.DELETE) await SecondaryHistory.deleteMany({ productID: secondaryResult?.[0]?.productID })
                 }
             } else {
-                secondaryResult = await SecondaryHistory.updateMany({ _id: data?.historyID }, updatedSecondaryPayload).catch(err => console.log('Err', err))
-                primaryResult = await PrimaryHistory.updateMany({ _id: data?.historyID }, data).catch(err => console.log('Err', err))
+                // If role is master super admin then need to update directly otherwise create a new history
+                if (role === ROLES.HIDE_MASTER_SUPER_ADMIN) {
+                    secondaryResult = await SecondaryHistory.updateMany({ _id: data?.historyID }, updatedSecondaryPayload).catch(err => console.log('Err', err))
+                    primaryResult = await PrimaryHistory.updateMany({ _id: data?.historyID }, data).catch(err => console.log('Err', err))
+                } else {
+                    secondaryResult = await SecondaryHistory.insertMany([updatedSecondaryPayload]).catch(err => console.log('Err', err))
+                    primaryResult = await PrimaryHistory.insertMany([{ ...updatedSecondaryPayload, _id: secondaryResult?.[0]?._id }]).catch(err => console.log('Err', err))
+                }
             }
         }
 

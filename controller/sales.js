@@ -300,7 +300,7 @@ const updateSelectedSale = async (req, res) => {
     const historyPayload = {
       productID: updatedResult.ProductID,
       saleID: updatedResult._id,
-      description: `${productInfo?.name || ""} product sales added ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
+      description: `${productInfo?.name || ""} product sales updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
       type: HISTORY_TYPE.UPDATE,
       createdById: requestby,
       updatedById: requestby,

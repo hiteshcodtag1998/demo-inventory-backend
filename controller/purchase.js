@@ -231,7 +231,7 @@ const updateSelectedPurchaase = async (req, res) => {
       const historyPayload = {
         productID: updatedResult.ProductID,
         purchaseID: updatedResult._id,
-        description: `${productInfo?.name || ""} product purchase added ${req.body?.quantityPurchased ? `(No of purchase: ${req.body?.quantityPurchased})` : ""}`,
+        description: `${productInfo?.name || ""} product purchase updated ${req.body?.quantityPurchased ? `(No of purchase: ${req.body?.quantityPurchased})` : ""}`,
         type: HISTORY_TYPE.UPDATE,
         createdById: requestby,
         updatedById: requestby,
@@ -278,7 +278,7 @@ const updateSelectedPurchaase = async (req, res) => {
       const historyPayload = {
         productID: updatedResult.ProductID,
         purchaseID: updatedResult._id,
-        description: `${productInfo?.name || ""} product purchase added ${req.body?.quantityPurchased ? `(No of purchase: ${req.body?.quantityPurchased})` : ""}`,
+        description: `${productInfo?.name || ""} product purchase updated ${req.body?.quantityPurchased ? `(No of purchase: ${req.body?.quantityPurchased})` : ""}`,
         type: HISTORY_TYPE.UPDATE,
         createdById: requestby,
         updatedById: requestby,
