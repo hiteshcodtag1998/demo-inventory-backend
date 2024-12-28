@@ -11,6 +11,7 @@ const { SecondaryWarehouse } = require("../models/warehouses");
 const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-multiple-item");
 const moment = require("moment-timezone");
 const { getTimezoneWiseDate } = require("../utils/handler");
+const { SecondarySales, PrimarySales } = require("../models/sales");
 
 // Add Purchase Details
 const addPurchase = async (req, res) => {
@@ -97,7 +98,7 @@ const addPurchase = async (req, res) => {
 };
 
 // Get All Purchase Data
-const getPurchaseData = async (req, res) => {
+const getAllPurchaseData = async (req, res) => {
   // const findAllPurchaseData = await SecondaryPurchase.find({ "userID": req.params.userID })
   //   .sort({ _id: -1 })
   //   .populate("ProductID"); // -1 for descending order
@@ -176,21 +177,36 @@ const getPurchaseData = async (req, res) => {
   res.json(findAllPurchaseData);
 };
 
+// Get All Purchase Data
+const getPurchaseData = async (req, res) => {
+
+  let findPurchaseData;
+
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
+    findPurchaseData = await PrimaryPurchase.findById(req?.params?.id).sort({ createdAt: -1 }).lean();
+  else
+    findPurchaseData = await SecondaryPurchase.findById(req?.params?.id).sort({ createdAt: -1 }).lean(); // -1 for descending;
+  res.json(findPurchaseData);
+};
+
 // Get total purchase amount
 const getTotalPurchaseAmount = async (req, res) => {
   let totalPurchaseAmount = 0;
 
   if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN) {
-    const purchaseData = await PrimaryPurchase.find();
-    purchaseData.forEach((purchase) => {
-      totalPurchaseAmount += purchase.TotalPurchaseAmount;
-    });
+    const purchaseData = await PrimaryPurchase.find().lean();
+
+    if (purchaseData && purchaseData?.length > 0)
+      purchaseData.forEach((purchase) => {
+        totalPurchaseAmount += purchase.TotalPurchaseAmount;
+      });
   }
   else {
-    const purchaseData = await SecondaryPurchase.find();
-    purchaseData.forEach((purchase) => {
-      totalPurchaseAmount += purchase.TotalPurchaseAmount;
-    });
+    const purchaseData = await SecondaryPurchase.find().lean();
+    if (purchaseData && purchaseData?.length > 0)
+      purchaseData.forEach((purchase) => {
+        totalPurchaseAmount += purchase.TotalPurchaseAmount;
+      });
   }
   res.json({ totalPurchaseAmount });
 };
@@ -393,4 +409,148 @@ const purchaseMultileItemsPdfDownload = async (req, res) => {
   }
 }
 
-module.exports = { addPurchase, getPurchaseData, getTotalPurchaseAmount, purchasePdfDownload, purchaseMultileItemsPdfDownload, updateSelectedPurchaase };
+// Get All Purchase Data by Product Id
+const getPurchaseDataByProductId = async (req, res) => {
+
+  let findPurchaseData;
+
+  if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
+    findPurchaseData = await PrimaryPurchase.find({ ProductID: req?.params?.productId }).sort({ createdAt: -1 }).lean();
+  else
+    findPurchaseData = await SecondaryPurchase.find({ ProductID: req?.params?.productId }).sort({ createdAt: -1 }).lean(); // -1 for descending;
+  res.json(findPurchaseData);
+};
+
+// Delete Selected Product
+const deleteSelectedPurchase = async (req, res) => {
+  const purchaseInfo = await SecondaryPurchase.findOne({ _id: req.params.id }).lean();
+  console.log('purchaseInfo', purchaseInfo)
+  if (!purchaseInfo) {
+    throw new Error("Purchase not found");
+  }
+
+  const deletePurchase = await SecondaryPurchase.deleteOne(
+    { _id: req.params.id }
+  ).then(async () => {
+    const historyPayload = {
+      purchaseID: req.params.id,
+      description: `${purchaseInfo?.ProductID?.name || ""} purchase deleted`,
+      type: HISTORY_TYPE.DELETE
+    }
+    addHistoryData(historyPayload, req?.headers?.role, HISTORY_TYPE.DELETE).catch(err => console.log('Err', err))
+    await PrimaryPurchase.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
+      console.log('Delete primary purchase error')
+    })
+  });
+
+  await deleteOrUpdateSaleByPurchase(purchaseInfo)
+
+  // await pullStockFromAvailableStock(purchaseInfo)
+
+  res.json({
+    deletePurchase
+  });
+};
+
+const deleteOrUpdateSaleByPurchase = async (purchaseInfo) => {
+  try {
+    console.log('purchaseInfo deleteOrUpdateSaleByPurchase', purchaseInfo)
+    const { _id: purchaseId } = purchaseInfo; // The purchase ID to process
+
+    // Find sales that are linked to this purchase
+    const sales = await SecondarySales.find({
+      linkedPurchaseId: purchaseId,
+    }).lean();
+
+
+    if (!sales.length) {
+      console.log('No sales found for this purchase')
+      return;
+    }
+
+    // Process each sale that is linked to the purchase
+    for (const sale of sales) {
+      const linkedPurchases = sale.linkedPurchaseId; // Array of linked purchases
+
+      if (linkedPurchases.length === 1 && linkedPurchases[0].toString() === purchaseId?.toString()) {
+        // Case 1: Single linked purchase - delete the sale
+        await SecondarySales.deleteOne({ _id: sale._id });
+        await PrimarySales.findByIdAndUpdate(
+          sale._id,
+          { isActive: false },
+          { new: true }
+        );
+        console.log(`Sale ${sale._id} deleted as it was only linked to purchase ${purchaseId}`);
+      } else {
+        // Case 2: Multiple linked purchases - decrease the stock
+        const stockToDecrease = purchaseInfo.QuantityPurchased;
+        // Update the sale directly
+        await SecondarySales.findByIdAndUpdate(
+          sale._id,
+          {
+            $inc: { StockSold: -stockToDecrease }, // Decrease StockSold
+            $pull: { linkedPurchaseId: purchaseId }, // Remove purchaseId from linkedPurchaseId
+          },
+          { new: true }
+        );
+
+        // Update the corresponding record in PrimarySales
+        await PrimarySales.findByIdAndUpdate(
+          sale._id,
+          {
+            $inc: { StockSold: -stockToDecrease },
+            $pull: { linkedPurchaseId: purchaseId },
+          },
+          { new: true }
+        );
+
+        console.log(
+          `Stock for sale ${sale._id} decreased by ${stockToDecrease} and purchase ${purchaseId} unlinked`
+        );
+      }
+    }
+  } catch (error) {
+    console.log('Error while deleteOrUpdateSaleByPurchase', error)
+  }
+};
+
+const pullStockFromAvailableStock = async (purchaseInfo) => {
+  try {
+    const { ProductID: productId, warehouseID: warehouseId, QuantityPurchased } = purchaseInfo;
+    console.log('pullStockFromAvailableStock purchaseInfo', purchaseInfo)
+
+    // Pull stock from SecondaryAvailableStock collection
+    const secondaryStock = await SecondaryAvailableStock.findOneAndUpdate(
+      { productID: new ObjectId(productId), warehouseID: new ObjectId(warehouseId) },
+      { $inc: { stock: -QuantityPurchased } }, // Decrease stock by QuantityPurchased
+      { new: true }
+    );
+    console.log('secondaryStock', secondaryStock)
+
+    if (!secondaryStock) {
+      console.log('Stock entry not found in SecondaryAvailableStock');
+      return;
+    }
+
+    // Pull stock from PrimaryAvailableStock collection
+    const primaryStock = await PrimaryAvailableStock.findOneAndUpdate(
+      { productID: new ObjectId(productId), warehouseID: new ObjectId(warehouseId) },
+      { $inc: { stock: -QuantityPurchased } }, // Decrease stock by QuantityPurchased
+      { new: true }
+    );
+
+    if (!primaryStock) {
+      console.log('Stock entry not found in PrimaryAvailableStock');
+      return;
+    }
+
+    console.log(`Removed ${QuantityPurchased} stock for product ${productId} from both Primary and Secondary collections`);
+
+    purchaseStock(productId, QuantityPurchased, true)
+  } catch (error) {
+    console.log('Error while pulling stock and updating product stocks', error);
+  }
+};
+
+
+module.exports = { addPurchase, getAllPurchaseData, getPurchaseData, getTotalPurchaseAmount, purchasePdfDownload, purchaseMultileItemsPdfDownload, updateSelectedPurchaase, getPurchaseDataByProductId, deleteSelectedPurchase };

@@ -144,6 +144,14 @@ app.get("/testget", async (req, res) => {
 
 })
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
 // Here we are listening to the server
 app.listen(PORT, () => {
   console.log(`Server is running on port: ${PORT}`);

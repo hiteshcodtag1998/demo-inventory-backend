@@ -51,6 +51,12 @@ const SaleSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "history"
     },
+    linkedPurchaseId: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "purchase",
+      },
+    ],
     isActive: {
       type: Boolean,
       default: true
