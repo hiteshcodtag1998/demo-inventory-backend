@@ -10,100 +10,221 @@ const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/av
 const { ObjectId } = require('mongodb');
 const moment = require("moment-timezone");
 const { getTimezoneWiseDate } = require("../utils/handler");
+const { SecondaryPurchase } = require("../models/purchase");
 
-// Add Purchase Details
+// Add WriteOff Details
 const addWriteOff = async (req, res) => {
-
     try {
         const writeOffs = req.body;
-        const saleDocs = await Promise.all(
-            writeOffs.map(async (sale) => {
 
+        const writeOffDocs = await Promise.all(
+            writeOffs.map(async (writeOff) => {
+                // Check if stock exists in SecondaryAvailableStock
                 const existsAvailableStock = await SecondaryAvailableStock.findOne({
-                    warehouseID: sale.warehouseID,
-                    productID: sale.productID,
+                    warehouseID: writeOff.warehouseID,
+                    productID: writeOff.productID,
                 });
 
-                if (!existsAvailableStock || existsAvailableStock?.stock < sale.stockSold) {
-                    throw new Error("Stock is not available")
+                if (!existsAvailableStock || existsAvailableStock?.stock < writeOff.stockSold) {
+                    throw new Error("Stock is not available");
                 }
 
-                const isExistProduct = await SecondaryProduct.findById(sale.productID)
+                // Check if the product exists in the SecondaryProduct collection
+                const isExistProduct = await SecondaryProduct.findById(writeOff.productID);
 
+                if (!isExistProduct) {
+                    throw new Error("Product does not exist");
+                }
+
+                let remainingStock = writeOff.stockSold;
+                const linkedPurchases = [];
+
+                // Fetch purchases (FIFO order)
+                const purchases = await SecondaryPurchase.find({
+                    ProductID: writeOff.productID,
+                    warehouseID: writeOff.warehouseID,
+                }).sort({ PurchaseDate: 1 });
+
+                // Deduct stock from purchases (without updating or deleting purchases)
+                for (const purchase of purchases) {
+                    if (remainingStock <= 0) break;
+
+                    const deductStock = Math.min(remainingStock, purchase.stock);
+
+                    linkedPurchases.push({
+                        purchaseID: purchase._id,
+                        quantity: deductStock,
+                    });
+
+                    remainingStock -= deductStock;
+
+                    // No updates or deletions to the purchase document
+                }
+
+                if (remainingStock > 0) {
+                    throw new Error("Insufficient purchase stock to fulfill the write-off");
+                }
+
+                // Create the write-off payload
                 const payload = {
-                    userID: sale.userID,
-                    ProductID: sale.productID,
-                    // StoreID: sale.storeID,
-                    StockSold: sale.stockSold,
-                    SaleDate: sale.saleDate,
-                    SupplierName: sale.supplierName,
-                    StoreName: sale.storeName,
-                    BrandID: sale.brandID,
-                    warehouseID: sale.warehouseID,
-                    referenceNo: sale?.referenceNo || "",
-                    reason: sale?.reason || ""
-                    // TotalSaleAmount: sale.totalSaleAmount,
-                }
+                    userID: writeOff.userID,
+                    ProductID: writeOff.productID,
+                    StockSold: writeOff.stockSold,
+                    SaleDate: writeOff.saleDate,
+                    SupplierName: writeOff.supplierName,
+                    StoreName: writeOff.storeName,
+                    BrandID: writeOff.brandID,
+                    warehouseID: writeOff.warehouseID,
+                    referenceNo: writeOff?.referenceNo || "",
+                    reason: writeOff?.reason || "",
+                    linkedPurchaseId: linkedPurchases.map((lp) => lp.purchaseID), // Save linked purchases
+                };
 
-                if (isExistProduct) {
-                    const addSalesDetails = new SecondaryWriteOff(payload);
+                // Create secondary write-off record
+                const addWriteOffDetails = new SecondaryWriteOff(payload);
+                let writeOffProduct = await addWriteOffDetails.save();
 
-                    let salesProduct = await addSalesDetails.save();
+                // Create primary write-off record (to insert in PrimaryWriteOff collection)
+                const primaryWriteOffPayload = {
+                    ...payload,
+                    _id: writeOffProduct._id,
+                    HistoryID: writeOffProduct._id, // Linking history ID for consistency
+                };
+                await PrimaryWriteOff.insertMany([primaryWriteOffPayload]);
 
-                    const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
-                    // Start History Data
-                    const productInfo = await SecondaryProduct.findOne({ _id: salesProduct.ProductID })
-                    const historyPayload = {
-                        productID: salesProduct.ProductID,
-                        writeOffID: salesProduct._id,
-                        description: `${productInfo?.name || ""} product writeoff ${sale?.stockSold ? `(No of writeoff: ${sale?.stockSold})` : ""}`,
-                        type: HISTORY_TYPE.ADD,
-                        historyDate: getTimezoneWiseDate(sale.saleDate),
-                        createdById: requestby,
-                        updatedById: requestby
-                    };
+                // Update available stock (Secondary and Primary collections)
+                const availableStockPayload = {
+                    warehouseID: writeOff.warehouseID,
+                    productID: writeOff.productID,
+                    stock: existsAvailableStock.stock - writeOff.stockSold,
+                };
+                await SecondaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
+                await PrimaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
 
-                    const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
-                    // End History Data
+                // Call soldStock function to update stock in both available stock collections
+                await soldStock(writeOff.productID, writeOff.stockSold);
 
-                    // Start update in available stock
-                    const availableStockPayload = {
-                        warehouseID: sale.warehouseID,
-                        productID: sale.productID,
-                        stock: existsAvailableStock?.stock - Number(sale.stockSold)
-                    }
+                // Add history for the write-off
+                const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : "";
+                const productInfo = await SecondaryProduct.findById(writeOff.productID);
+                const historyPayload = {
+                    productID: writeOff.productID,
+                    writeOffID: writeOffProduct._id,
+                    description: `${productInfo?.name || ""} product writeoff (No of writeoff: ${writeOff.stockSold})`,
+                    type: HISTORY_TYPE.ADD,
+                    historyDate: getTimezoneWiseDate(writeOff.saleDate),
+                    createdById: requestby,
+                    updatedById: requestby,
+                };
+                const { secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
 
-                    await SecondaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload);
-                    await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
-                    // End update in available stock
+                // Update history in write-off sales
+                writeOffProduct = { ...writeOffProduct._doc, HistoryID: secondaryResult?.[0]?._id };
+                await SecondaryWriteOff.updateOne({ _id: writeOffProduct._id }, { HistoryID: secondaryResult?.[0]?._id });
 
-                    salesProduct = { ...salesProduct._doc, HistoryID: secondaryResult?.[0]?._id }
-                    await Promise.all([
-                        PrimaryWriteOff.insertMany([salesProduct]),
-                        SecondaryWriteOff.updateOne({ _id: new ObjectId(salesProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
-                    ]);
-                    soldStock(sale.productID, sale.stockSold);
-
-                    return salesProduct;
-                } else {
-                    const addSale = new PrimaryWriteOff(payload);
-                    addSale
-                        .save()
-                        .then(async (result) => {
-                            soldStock(sale.productID, sale.stockSold);
-                            return result
-                        })
-                        .catch((err) => {
-                            res.status(402).send(err);
-                        });
-                }
+                // Return final write-off product
+                return writeOffProduct;
             })
         );
-        res.status(200).send(saleDocs);
+
+        res.status(200).send(writeOffDocs);
     } catch (err) {
         res.status(500).send({ err, message: err?.message || "" });
     }
 };
+
+// const addWriteOff = async (req, res) => {
+
+//     try {
+//         const writeOffs = req.body;
+//         const saleDocs = await Promise.all(
+//             writeOffs.map(async (sale) => {
+
+//                 const existsAvailableStock = await SecondaryAvailableStock.findOne({
+//                     warehouseID: sale.warehouseID,
+//                     productID: sale.productID,
+//                 });
+
+//                 if (!existsAvailableStock || existsAvailableStock?.stock < sale.stockSold) {
+//                     throw new Error("Stock is not available")
+//                 }
+
+//                 const isExistProduct = await SecondaryProduct.findById(sale.productID)
+
+//                 const payload = {
+//                     userID: sale.userID,
+//                     ProductID: sale.productID,
+//                     // StoreID: sale.storeID,
+//                     StockSold: sale.stockSold,
+//                     SaleDate: sale.saleDate,
+//                     SupplierName: sale.supplierName,
+//                     StoreName: sale.storeName,
+//                     BrandID: sale.brandID,
+//                     warehouseID: sale.warehouseID,
+//                     referenceNo: sale?.referenceNo || "",
+//                     reason: sale?.reason || ""
+//                     // TotalSaleAmount: sale.totalSaleAmount,
+//                 }
+
+//                 if (isExistProduct) {
+//                     const addSalesDetails = new SecondaryWriteOff(payload);
+
+//                     let salesProduct = await addSalesDetails.save();
+
+//                     const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+//                     // Start History Data
+//                     const productInfo = await SecondaryProduct.findOne({ _id: salesProduct.ProductID })
+//                     const historyPayload = {
+//                         productID: salesProduct.ProductID,
+//                         writeOffID: salesProduct._id,
+//                         description: `${productInfo?.name || ""} product writeoff ${sale?.stockSold ? `(No of writeoff: ${sale?.stockSold})` : ""}`,
+//                         type: HISTORY_TYPE.ADD,
+//                         historyDate: getTimezoneWiseDate(sale.saleDate),
+//                         createdById: requestby,
+//                         updatedById: requestby
+//                     };
+
+//                     const { primaryResult, secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
+//                     // End History Data
+
+//                     // Start update in available stock
+//                     const availableStockPayload = {
+//                         warehouseID: sale.warehouseID,
+//                         productID: sale.productID,
+//                         stock: existsAvailableStock?.stock - Number(sale.stockSold)
+//                     }
+
+//                     await SecondaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload);
+//                     await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
+//                     // End update in available stock
+
+//                     salesProduct = { ...salesProduct._doc, HistoryID: secondaryResult?.[0]?._id }
+//                     await Promise.all([
+//                         PrimaryWriteOff.insertMany([salesProduct]),
+//                         SecondaryWriteOff.updateOne({ _id: new ObjectId(salesProduct._id) }, { HistoryID: secondaryResult?.[0]?._id })
+//                     ]);
+//                     soldStock(sale.productID, sale.stockSold);
+
+//                     return salesProduct;
+//                 } else {
+//                     const addSale = new PrimaryWriteOff(payload);
+//                     addSale
+//                         .save()
+//                         .then(async (result) => {
+//                             soldStock(sale.productID, sale.stockSold);
+//                             return result
+//                         })
+//                         .catch((err) => {
+//                             res.status(402).send(err);
+//                         });
+//                 }
+//             })
+//         );
+//         res.status(200).send(saleDocs);
+//     } catch (err) {
+//         res.status(500).send({ err, message: err?.message || "" });
+//     }
+// };
 
 // Get All WriteOff Product Data
 const getWriteOffData = async (req, res) => {
@@ -220,32 +341,34 @@ const writeOffPdfDownload = (req, res) => {
 // Update Selected WriteOff
 const updateSelectedWriteOff = async (req, res) => {
     try {
-        const findSecondarySale = await SecondaryWriteOff.findByIdAndUpdate(
-            { _id: req.body.writeOffID });
+        // Find the existing write-off record by ID
+        const findSecondaryWriteOff = await SecondaryWriteOff.findOne({ _id: new ObjectId(req.body.writeOffID) });
+        if (!findSecondaryWriteOff) {
+            throw new Error("Write-off not found");
+        }
 
+        // Find the available stock for the product in the specified warehouse
         const existsAvailableStock = await SecondaryAvailableStock.findOne({
             warehouseID: req.body.warehouseID,
             productID: req.body.productID,
         });
+        if (!existsAvailableStock) {
+            throw new Error("Available stock not found");
+        }
 
-        const beforeWriteOffData = await SecondaryWriteOff.findOne({ _id: req.body.writeOffID });
+        // Calculate the stock difference and ensure there is sufficient stock available
+        if (findSecondaryWriteOff?.StockSold !== req.body.stockSold) {
+            const stockDifference = req.body.stockSold - findSecondaryWriteOff?.StockSold;
+            const updatedAvailableStock = existsAvailableStock?.stock + stockDifference;
 
-        if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock)) {
-            throw new Error("Stock is not available")
-        } else if (findSecondarySale?.StockSold !== req.body.stockSold && findSecondarySale?.StockSold < req.body.stockSold) {
-            const requestedStock = findSecondarySale?.StockSold - req.body.stockSold
-            const checkExistingData = existsAvailableStock?.stock + requestedStock
-            if (checkExistingData < 0) {
-                throw new Error("Stock is not available")
+            if (updatedAvailableStock < 0) {
+                throw new Error("Stock is not available");
             }
         }
 
-        // if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold)) {
-        //     throw new Error("Stock is not available")
-        // }
-
+        // Update the write-off record
         const updatedResult = await SecondaryWriteOff.findByIdAndUpdate(
-            { _id: req.body.writeOffID },
+            req.body.writeOffID,
             {
                 userID: req.body.userID,
                 ProductID: req.body.productID,
@@ -255,54 +378,143 @@ const updateSelectedWriteOff = async (req, res) => {
                 StoreName: req.body.storeName,
                 BrandID: req.body.brandID,
                 warehouseID: req.body.warehouseID,
-                referenceNo: req.body?.referenceNo || ""
+                referenceNo: req.body?.referenceNo || "",
+                reason: req.body?.reason || "", // Reason for the write-off
             },
             { new: true }
         );
 
-        const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+        const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : "";
 
-        // Start History Data
-        const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
+        // Start History Data - Log the update in history
+        const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID });
         const historyPayload = {
             productID: updatedResult.ProductID,
             writeOffID: updatedResult._id,
+            description: `${productInfo?.name || ""} product write-off updated (No of write-off: ${req.body?.stockSold || 0})`,
+            type: HISTORY_TYPE.UPDATE,
             createdById: requestby,
             updatedById: requestby,
-            historyID: updatedResult?.HistoryID || "",
             historyDate: getTimezoneWiseDate(req.body.saleDate),
-            description: `${productInfo?.name || ""} product writeOff updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
-            type: HISTORY_TYPE.UPDATE,
+            historyID: updatedResult?.HistoryID || "",
         };
 
         await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
         // End History Data
 
-        // Start update in available stock
+        // Update the available stock based on the new write-off quantity
+        const stockDifference = (findSecondaryWriteOff?.StockSold - req.body.stockSold);
         const availableStockPayload = {
             warehouseID: req.body.warehouseID,
             productID: req.body.productID,
-            stock: (existsAvailableStock?.stock - Number(req.body.stockSold)) + beforeWriteOffData?.StockSold
-        }
+            stock: existsAvailableStock?.stock + stockDifference,
+        };
 
-        await SecondaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload);
-        await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
-        // End update in available stock
+        await SecondaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
+        await PrimaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
 
-        soldStock(req.body.productID, req.body.stockSold, true, beforeWriteOffData?.StockSold);
+        // Update the sold stock function (adjust stock when write-off is updated)
+        soldStock(req.body.productID, req.body.stockSold, true, findSecondaryWriteOff?.StockSold);
 
-        // End update in available stock
-
-        await PrimaryWriteOff.findByIdAndUpdate({ _id: req.body.writeOffID }, {
+        // Update the write-off in the PrimaryWriteOff collection
+        await PrimaryWriteOff.findByIdAndUpdate(req.body.writeOffID, {
             StockSold: req.body.stockSold,
             SaleDate: req.body.saleDate,
-            referenceNo: req.body?.referenceNo || ""
-        })
+            referenceNo: req.body?.referenceNo || "",
+        });
+
+        // Return the updated write-off record
         res.json(updatedResult);
     } catch (error) {
-        res.status(500).send({ error, message: error?.message || "" });
+        res.status(500).send({ error, message: error?.message || "An error occurred" });
     }
 };
+
+// const updateSelectedWriteOff = async (req, res) => {
+//     try {
+//         const findSecondarySale = await SecondaryWriteOff.findByIdAndUpdate(
+//             { _id: req.body.writeOffID });
+
+//         const existsAvailableStock = await SecondaryAvailableStock.findOne({
+//             warehouseID: req.body.warehouseID,
+//             productID: req.body.productID,
+//         });
+
+//         const beforeWriteOffData = await SecondaryWriteOff.findOne({ _id: req.body.writeOffID });
+
+//         if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock)) {
+//             throw new Error("Stock is not available")
+//         } else if (findSecondarySale?.StockSold !== req.body.stockSold && findSecondarySale?.StockSold < req.body.stockSold) {
+//             const requestedStock = findSecondarySale?.StockSold - req.body.stockSold
+//             const checkExistingData = existsAvailableStock?.stock + requestedStock
+//             if (checkExistingData < 0) {
+//                 throw new Error("Stock is not available")
+//             }
+//         }
+
+//         // if (findSecondarySale?.StockSold !== req.body.stockSold && (!existsAvailableStock || existsAvailableStock?.stock < req.body.stockSold)) {
+//         //     throw new Error("Stock is not available")
+//         // }
+
+//         const updatedResult = await SecondaryWriteOff.findByIdAndUpdate(
+//             { _id: req.body.writeOffID },
+//             {
+//                 userID: req.body.userID,
+//                 ProductID: req.body.productID,
+//                 StockSold: req.body.stockSold,
+//                 SaleDate: req.body.saleDate,
+//                 SupplierName: req.body.supplierName,
+//                 StoreName: req.body.storeName,
+//                 BrandID: req.body.brandID,
+//                 warehouseID: req.body.warehouseID,
+//                 referenceNo: req.body?.referenceNo || ""
+//             },
+//             { new: true }
+//         );
+
+//         const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : ""
+
+//         // Start History Data
+//         const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID })
+//         const historyPayload = {
+//             productID: updatedResult.ProductID,
+//             writeOffID: updatedResult._id,
+//             createdById: requestby,
+//             updatedById: requestby,
+//             historyID: updatedResult?.HistoryID || "",
+//             historyDate: getTimezoneWiseDate(req.body.saleDate),
+//             description: `${productInfo?.name || ""} product writeOff updated ${req.body?.stockSold ? `(No of sale: ${req.body?.stockSold})` : ""}`,
+//             type: HISTORY_TYPE.UPDATE,
+//         };
+
+//         await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
+//         // End History Data
+
+//         // Start update in available stock
+//         const availableStockPayload = {
+//             warehouseID: req.body.warehouseID,
+//             productID: req.body.productID,
+//             stock: (existsAvailableStock?.stock - Number(req.body.stockSold)) + beforeWriteOffData?.StockSold
+//         }
+
+//         await SecondaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload);
+//         await PrimaryAvailableStock.findByIdAndUpdate(new ObjectId(existsAvailableStock?._id), availableStockPayload)
+//         // End update in available stock
+
+//         soldStock(req.body.productID, req.body.stockSold, true, beforeWriteOffData?.StockSold);
+
+//         // End update in available stock
+
+//         await PrimaryWriteOff.findByIdAndUpdate({ _id: req.body.writeOffID }, {
+//             StockSold: req.body.stockSold,
+//             SaleDate: req.body.saleDate,
+//             referenceNo: req.body?.referenceNo || ""
+//         })
+//         res.json(updatedResult);
+//     } catch (error) {
+//         res.status(500).send({ error, message: error?.message || "" });
+//     }
+// };
 
 const writeOffMultileItemsPdfDownload = async (req, res) => {
     try {

@@ -484,7 +484,6 @@ const updateSelectedSale = async (req, res) => {
   }
 };
 
-
 // const updateSelectedSale = async (req, res) => {
 //   try {
 

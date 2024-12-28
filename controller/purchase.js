@@ -12,6 +12,7 @@ const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-mu
 const moment = require("moment-timezone");
 const { getTimezoneWiseDate } = require("../utils/handler");
 const { SecondarySales, PrimarySales } = require("../models/sales");
+const { SecondaryWriteOff, PrimaryWriteOff } = require("../models/writeOff");
 
 // Add Purchase Details
 const addPurchase = async (req, res) => {
@@ -423,11 +424,15 @@ const getPurchaseDataByProductId = async (req, res) => {
 
 // Delete Selected Product
 const deleteSelectedPurchase = async (req, res) => {
+  let needToRemoveItem = 0;
+
   const purchaseInfo = await SecondaryPurchase.findOne({ _id: req.params.id }).lean();
   console.log('purchaseInfo', purchaseInfo)
   if (!purchaseInfo) {
     throw new Error("Purchase not found");
   }
+
+  needToRemoveItem = purchaseInfo?.QuantityPurchased || 0
 
   const deletePurchase = await SecondaryPurchase.deleteOne(
     { _id: req.params.id }
@@ -443,7 +448,9 @@ const deleteSelectedPurchase = async (req, res) => {
     })
   });
 
-  await deleteOrUpdateSaleByPurchase(purchaseInfo)
+  needToRemoveItem = await deleteOrUpdateSaleByPurchase(purchaseInfo, needToRemoveItem);
+
+  needToRemoveItem = await deleteOrUpdateWriteOffByPurchase(purchaseInfo, needToRemoveItem);
 
   // await pullStockFromAvailableStock(purchaseInfo)
 
@@ -452,9 +459,10 @@ const deleteSelectedPurchase = async (req, res) => {
   });
 };
 
-const deleteOrUpdateSaleByPurchase = async (purchaseInfo) => {
+const deleteOrUpdateSaleByPurchase = async (purchaseInfo, needToRemoveItem) => {
   try {
-    console.log('purchaseInfo deleteOrUpdateSaleByPurchase', purchaseInfo)
+    if (needToRemoveItem <= 0) return;
+
     const { _id: purchaseId } = purchaseInfo; // The purchase ID to process
 
     // Find sales that are linked to this purchase
@@ -465,7 +473,7 @@ const deleteOrUpdateSaleByPurchase = async (purchaseInfo) => {
 
     if (!sales.length) {
       console.log('No sales found for this purchase')
-      return;
+      return needToRemoveItem;
     }
 
     // Process each sale that is linked to the purchase
@@ -473,6 +481,7 @@ const deleteOrUpdateSaleByPurchase = async (purchaseInfo) => {
       const linkedPurchases = sale.linkedPurchaseId; // Array of linked purchases
 
       if (linkedPurchases.length === 1 && linkedPurchases[0].toString() === purchaseId?.toString()) {
+
         // Case 1: Single linked purchase - delete the sale
         await SecondarySales.deleteOne({ _id: sale._id });
         await PrimarySales.findByIdAndUpdate(
@@ -484,11 +493,12 @@ const deleteOrUpdateSaleByPurchase = async (purchaseInfo) => {
       } else {
         // Case 2: Multiple linked purchases - decrease the stock
         const stockToDecrease = purchaseInfo.QuantityPurchased;
+
         // Update the sale directly
         await SecondarySales.findByIdAndUpdate(
           sale._id,
           {
-            $inc: { StockSold: -stockToDecrease }, // Decrease StockSold
+            $inc: { StockSold: -needToRemoveItem }, // Decrease StockSold
             $pull: { linkedPurchaseId: purchaseId }, // Remove purchaseId from linkedPurchaseId
           },
           { new: true }
@@ -498,7 +508,7 @@ const deleteOrUpdateSaleByPurchase = async (purchaseInfo) => {
         await PrimarySales.findByIdAndUpdate(
           sale._id,
           {
-            $inc: { StockSold: -stockToDecrease },
+            $inc: { StockSold: -needToRemoveItem },
             $pull: { linkedPurchaseId: purchaseId },
           },
           { new: true }
@@ -508,16 +518,92 @@ const deleteOrUpdateSaleByPurchase = async (purchaseInfo) => {
           `Stock for sale ${sale._id} decreased by ${stockToDecrease} and purchase ${purchaseId} unlinked`
         );
       }
+
+      needToRemoveItem -= sale?.StockSold || 0
+
+      // If all items are removed, break out of the loop
+      if (needToRemoveItem <= 0) break;
     }
+    return needToRemoveItem
   } catch (error) {
     console.log('Error while deleteOrUpdateSaleByPurchase', error)
+    return needToRemoveItem;
   }
 };
+
+const deleteOrUpdateWriteOffByPurchase = async (purchaseInfo, needToRemoveItem) => {
+  try {
+    if (needToRemoveItem <= 0) return;
+
+    const { _id: purchaseId, QuantityPurchased } = purchaseInfo; // The purchase ID to process
+
+    // Find write-offs that are linked to this purchase
+    const writeOffs = await SecondaryWriteOff.find({
+      linkedPurchaseId: purchaseId,
+    }).lean();
+
+    // If no write-offs are linked to the purchase, log and return
+    if (!writeOffs.length) {
+      console.log('No write-offs found for this purchase');
+      return needToRemoveItem;
+    }
+
+    // Process each write-off that is linked to the purchase
+    for (const writeOff of writeOffs) {
+      const linkedPurchases = writeOff.linkedPurchaseId; // Array of linked purchases
+
+      if (linkedPurchases.length === 1 && linkedPurchases[0].toString() === purchaseId?.toString()) {
+        // Case 1: Single linked purchase - delete the write-off
+        await SecondaryWriteOff.deleteOne({ _id: writeOff._id });
+        await PrimaryWriteOff.findByIdAndUpdate(
+          writeOff._id,
+          { isActive: false },
+          { new: true }
+        );
+        console.log(`Write-off ${writeOff._id} deleted as it was only linked to purchase ${purchaseId}`);
+      } else {
+        // Case 2: Multiple linked purchases - decrease the stock
+        const stockToDecrease = QuantityPurchased;
+        // Update the write-off directly
+        await SecondaryWriteOff.findByIdAndUpdate(
+          writeOff._id,
+          {
+            $inc: { StockSold: -needToRemoveItem }, // Decrease StockSold
+            $pull: { linkedPurchaseId: purchaseId }, // Remove purchaseId from linkedPurchaseId
+          },
+          { new: true }
+        );
+
+        // Update the corresponding record in PrimaryWriteOff
+        await PrimaryWriteOff.findByIdAndUpdate(
+          writeOff._id,
+          {
+            $inc: { StockSold: -needToRemoveItem },
+            $pull: { linkedPurchaseId: purchaseId },
+          },
+          { new: true }
+        );
+
+        console.log(
+          `Stock for write-off ${writeOff._id} decreased by ${stockToDecrease} and purchase ${purchaseId} unlinked`
+        );
+      }
+
+      needToRemoveItem -= writeOff?.StockSold || 0
+
+      // If all items are removed, break out of the loop
+      if (needToRemoveItem <= 0) break;
+    }
+    return needToRemoveItem
+  } catch (error) {
+    console.log('Error while deleteOrUpdateWriteOffByPurchase', error);
+  }
+};
+
 
 const pullStockFromAvailableStock = async (purchaseInfo) => {
   try {
     const { ProductID: productId, warehouseID: warehouseId, QuantityPurchased } = purchaseInfo;
-    console.log('pullStockFromAvailableStock purchaseInfo', purchaseInfo)
 
     // Pull stock from SecondaryAvailableStock collection
     const secondaryStock = await SecondaryAvailableStock.findOneAndUpdate(
@@ -525,7 +611,6 @@ const pullStockFromAvailableStock = async (purchaseInfo) => {
       { $inc: { stock: -QuantityPurchased } }, // Decrease stock by QuantityPurchased
       { new: true }
     );
-    console.log('secondaryStock', secondaryStock)
 
     if (!secondaryStock) {
       console.log('Stock entry not found in SecondaryAvailableStock');
