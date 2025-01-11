@@ -1,7 +1,7 @@
 const { PrimarySales, SecondarySales } = require("../models/sales");
 const soldStock = require("../controller/soldStock");
 const { ROLES, HISTORY_TYPE, METHODS } = require("../utils/constant");
-const { SecondaryProduct } = require("../models/product");
+const { SecondaryProduct, PrimaryProduct } = require("../models/product");
 const { generatePDFfromHTML } = require("../utils/pdfDownload");
 const { invoiceBill } = require("../utils/templates/invoice-bill");
 const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/availableStock");
@@ -20,51 +20,75 @@ const addSales = async (req, res) => {
 
     const saleDocs = await Promise.all(
       sales.map(async (sale) => {
+        // Check available stock for the product in the warehouse
         const existsAvailableStock = await SecondaryAvailableStock.findOne({
           warehouseID: sale.warehouseID,
           productID: sale.productID,
         });
 
-        if (!existsAvailableStock || existsAvailableStock?.stock < sale.stockSold) {
-          throw new Error("Stock is not available");
+        const [productInfos, warehouseInfos] = await Promise.all([
+          SecondaryProduct.findById(sale.productID).lean(),
+          SecondaryWarehouse.findById(sale.warehouseID).lean()
+        ])
+
+        if (!existsAvailableStock || existsAvailableStock.stock < sale.stockSold) {
+          throw new Error(
+            `Insufficient available stock for product ${productInfos.name} in warehouse ${warehouseInfos.name}`
+          );
         }
 
+        // Verify product existence
         const isExistProduct = await SecondaryProduct.findById(sale.productID);
-
         if (!isExistProduct) {
-          throw new Error("Product does not exist");
+          throw new Error(`Product ${sale.productID} does not exist`);
         }
 
         let remainingStock = sale.stockSold;
         const linkedPurchases = [];
 
-        // Fetch purchases (FIFO order)
+        // Fetch purchases in FIFO order
         const purchases = await SecondaryPurchase.find({
           ProductID: sale.productID,
           warehouseID: sale.warehouseID,
         }).sort({ PurchaseDate: 1 });
 
-        // Deduct stock from purchases (without updating or deleting purchases)
+        if (!purchases || purchases.length === 0) {
+          throw new Error("No purchases available to fulfill the sale");
+        }
+
+        // Deduct stock from purchases
         for (const purchase of purchases) {
-          if (remainingStock <= 0) break;
+          if (!purchase) continue;
 
-          const deductStock = Math.min(remainingStock, purchase.stock);
+          const effectiveRemainingStock = purchase.remainingStock ?? purchase.QuantityPurchased;
+          const deductStock = Math.min(remainingStock, effectiveRemainingStock);
 
-          linkedPurchases.push({
-            purchaseID: purchase._id,
-            quantity: deductStock,
-          });
+          if (deductStock > 0) {
+            // Update purchase record
+            await SecondaryPurchase.findByIdAndUpdate(
+              purchase._id,
+              {
+                $inc: { remainingStock: -deductStock },
+                $set: { isUsed: effectiveRemainingStock - deductStock <= 0 },
+              }
+            );
 
-          remainingStock -= deductStock;
+            linkedPurchases.push({
+              purchaseID: purchase._id,
+              quantity: deductStock,
+            });
 
-          // No updates or deletions to the purchase document
+            remainingStock -= deductStock;
+
+            if (remainingStock === 0) break; // Stop if the sale is fully fulfilled
+          }
         }
 
         if (remainingStock > 0) {
           throw new Error("Insufficient purchase stock to fulfill the sale");
         }
 
-        // Create the sale payload
+        // Prepare the sale payload
         const payload = {
           userID: sale.userID,
           ProductID: sale.productID,
@@ -75,34 +99,32 @@ const addSales = async (req, res) => {
           BrandID: sale.brandID,
           warehouseID: sale.warehouseID,
           referenceNo: sale.referenceNo || "",
-          linkedPurchaseId: linkedPurchases.map((lp) => lp.purchaseID), // Save linked purchases
+          linkedPurchaseId: linkedPurchases.map((lp) => lp.purchaseID),
         };
 
         // Create secondary sale record
         const addSalesDetails = new SecondarySales(payload);
         let salesProduct = await addSalesDetails.save();
 
-        // Create primary sale record (to insert in PrimarySales collection)
+        // Create primary sale record
         const primarySalesPayload = {
           ...payload,
           _id: salesProduct._id,
-          HistoryID: salesProduct._id, // Linking history ID for consistency
+          HistoryID: salesProduct._id,
         };
         await PrimarySales.insertMany([primarySalesPayload]);
 
         // Update available stock
-        const availableStockPayload = {
-          warehouseID: sale.warehouseID,
-          productID: sale.productID,
-          stock: existsAvailableStock.stock - sale.stockSold,
-        };
-        await SecondaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
+        await SecondaryAvailableStock.findByIdAndUpdate(
+          existsAvailableStock._id,
+          { $inc: { stock: -sale.stockSold } }
+        );
 
-        // Call soldStock function to update stock in both available stock collections
+        // Update sold stock
         await soldStock(sale.productID, sale.stockSold);
 
-        // Add history for the sale
-        const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : "";
+        // Add sale history
+        const requestBy = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : "";
         const productInfo = await SecondaryProduct.findById(sale.productID);
         const historyPayload = {
           productID: sale.productID,
@@ -110,25 +132,35 @@ const addSales = async (req, res) => {
           description: `${productInfo?.name || ""} product sold (No of sale: ${sale.stockSold})`,
           type: HISTORY_TYPE.ADD,
           historyDate: getTimezoneWiseDate(sale.saleDate),
-          createdById: requestby,
-          updatedById: requestby,
+          createdById: requestBy,
+          updatedById: requestBy,
         };
-        const { secondaryResult } = await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.ADD);
 
-        // Update history in sales
+        const { secondaryResult } = await addHistoryData(
+          historyPayload,
+          req?.headers?.role,
+          null,
+          METHODS.ADD
+        );
+
+        // Update sale history ID
         salesProduct = { ...salesProduct._doc, HistoryID: secondaryResult?.[0]?._id };
-        await SecondarySales.updateOne({ _id: salesProduct._id }, { HistoryID: secondaryResult?.[0]?._id });
+        await SecondarySales.updateOne(
+          { _id: salesProduct._id },
+          { HistoryID: secondaryResult?.[0]?._id }
+        );
 
-        // Return final sales product
         return salesProduct;
       })
     );
 
     res.status(200).send(saleDocs);
   } catch (err) {
-    res.status(500).send({ err, message: err?.message || "" });
+    console.error("Error in addSales:", err);
+    res.status(500).send({ error: err.message });
   }
 };
+
 
 // The soldStock function
 // const soldStock = async (productID, soldQuantity) => {
@@ -294,6 +326,15 @@ const getSalesData = async (req, res) => {
         preserveNullAndEmptyArrays: true // Preserve records without matching BrandID
       }
     },
+    {
+      $lookup: {
+        from: "purchases",
+        localField: "linkedPurchaseId", // Matches against the array
+        foreignField: "_id",
+        as: "linkedPurchaseId"
+      }
+    },
+
     // {
     //   $lookup: {
     //     from: 'stores',
@@ -320,12 +361,15 @@ const getSalesData = async (req, res) => {
         TotalSaleAmount: 1,
         referenceNo: 1,
         linkedPurchaseId: 1,
+        linkedPurchaseDetails: 1,
         isActive: 1,
         createdAt: 1,
         updatedAt: 1
       }
     },
     { $sort: { _id: -1 } }];
+
+  console.log('aggregationPiepline', JSON.stringify(aggregationPiepline))
   if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
     findAllSalesData = await PrimarySales.aggregate(aggregationPiepline);
   else
@@ -393,96 +437,265 @@ const salePdfDownload = (req, res) => {
   }
 }
 
-// Update Selected Sale
 const updateSelectedSale = async (req, res) => {
   try {
-    // Find the existing sale record by ID
-    const findSecondarySale = await SecondarySales.findOne({ _id: new ObjectId(req.body.saleID) });
-    if (!findSecondarySale) {
-      throw new Error("Sale not found");
+    const { saleID } = req.body;
+
+    // Fetch the existing sale
+    const existingSale = await SecondarySales.findById(saleID);
+    if (!existingSale) {
+      throw new Error("Sale record not found");
     }
 
-    // Find the available stock for the product in the specified warehouse
+    const stockDifference = req.body.stockSold - existingSale.StockSold;
+
+    // Fetch available stock
     const existsAvailableStock = await SecondaryAvailableStock.findOne({
       warehouseID: req.body.warehouseID,
       productID: req.body.productID,
     });
-    if (!existsAvailableStock) {
-      throw new Error("Available stock not found");
+
+    console.log('existsAvailableStock', existsAvailableStock, stockDifference)
+
+    // Check available stock only when increasing sold stock
+    if (stockDifference > 0 && (!existsAvailableStock || existsAvailableStock.stock < stockDifference)) {
+      throw new Error("Insufficient available stock for the update.");
     }
 
-    // Calculate the stock difference and ensure there is sufficient stock available
-    if (findSecondarySale?.StockSold !== req.body.stockSold) {
-      const stockDifference = req.body.stockSold - findSecondarySale?.StockSold;
-      const updatedAvailableStock = existsAvailableStock?.stock + stockDifference;
+    // Fetch linked purchases
+    const purchases = await SecondaryPurchase.find({
+      ProductID: req.body.productID,
+      warehouseID: req.body.warehouseID,
+    }).sort({ PurchaseDate: 1 });
 
-      if (updatedAvailableStock < 0) {
-        throw new Error("Stock is not available");
+    if (!purchases || purchases.length === 0) {
+      throw new Error("No purchases available to adjust the sale.");
+    }
+
+    // Adjust remainingStock for linked purchases
+    let remainingToProcess = Math.abs(stockDifference);
+
+    if (stockDifference > 0) {
+      // Increasing the sold stock
+      for (const purchase of purchases) {
+        if (remainingToProcess <= 0) break;
+
+        if (purchase.remainingStock > 0) {
+          const deductStock = Math.min(remainingToProcess, purchase.remainingStock);
+
+          await SecondaryPurchase.findByIdAndUpdate(purchase._id, {
+            $inc: { remainingStock: -deductStock },
+            $set: { isUsed: (purchase.remainingStock - deductStock) === 0 },
+          });
+
+          remainingToProcess -= deductStock;
+        }
+      }
+
+      if (remainingToProcess > 0) {
+        throw new Error("Insufficient stock in linked purchases for the update.");
+      }
+    } else if (stockDifference < 0) {
+      // Decreasing the sold stock
+      for (const purchase of purchases) {
+        if (remainingToProcess <= 0) break;
+
+        const updatedRemainingStock = purchase.remainingStock + remainingToProcess;
+
+        // Ensure not exceeding original purchased quantity
+        const newRemainingStock = Math.min(updatedRemainingStock, purchase.QuantityPurchased);
+
+        await SecondaryPurchase.findByIdAndUpdate(purchase._id, {
+          $set: {
+            remainingStock: newRemainingStock,
+            isUsed: newRemainingStock < purchase.QuantityPurchased,
+          },
+        });
+
+        remainingToProcess -= (newRemainingStock - purchase.remainingStock);
       }
     }
 
-    // Update the sale record
-    const updatedResult = await SecondarySales.findByIdAndUpdate(
-      req.body.saleID,
-      {
-        userID: req.body.userID,
-        ProductID: req.body.productID,
-        StockSold: req.body.stockSold,
-        SaleDate: req.body.saleDate,
-        SupplierName: req.body.supplierName,
-        StoreName: req.body.storeName,
-        BrandID: req.body.brandID,
-        warehouseID: req.body.warehouseID,
-        referenceNo: req.body?.referenceNo || "",
-      },
-      { new: true }
+    // Update sale record
+    await SecondarySales.findByIdAndUpdate(saleID, {
+      ...req.body,
+      StockSold: req.body.stockSold,
+    });
+
+    // Update available stock
+    await SecondaryAvailableStock.findByIdAndUpdate(
+      existsAvailableStock._id,
+      { $inc: { stock: -stockDifference } }
     );
 
-    const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : "";
+    // Update sold stock
+    await soldStock(req.body.productID, req.body.stockSold - existingSale.StockSold);
 
-    // Start History Data - Log the update in history
-    const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID });
+    // Update sale history
+    const requestBy = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : "";
+    const productInfo = await SecondaryProduct.findById(req.body.productID);
     const historyPayload = {
-      productID: updatedResult.ProductID,
-      saleID: updatedResult._id,
-      description: `${productInfo?.name || ""} product sale updated (No of sale: ${req.body?.stockSold || 0})`,
+      productID: req.body.productID,
+      saleID,
+      description: `${productInfo?.name || ""} product sale updated (No of sale: ${req.body.stockSold})`,
       type: HISTORY_TYPE.UPDATE,
-      createdById: requestby,
-      updatedById: requestby,
       historyDate: getTimezoneWiseDate(req.body.saleDate),
-      historyID: updatedResult?.HistoryID || "",
+      createdById: requestBy,
+      updatedById: requestBy,
     };
 
     await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
-    // End History Data
 
-    // Update the available stock based on the new sale
-    const stockDifference = (findSecondarySale?.StockSold - req.body.stockSold)
-    const availableStockPayload = {
-      warehouseID: req.body.warehouseID,
-      productID: req.body.productID,
-      stock: existsAvailableStock?.stock + stockDifference,
-    };
-
-    await SecondaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
-    await PrimaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
-
-    // Update the sold stock function (adjust stock when sale is updated)
-    soldStock(req.body.productID, req.body.stockSold, true, findSecondarySale?.StockSold);
-
-    // Update the sale in the PrimarySales collection
-    await PrimarySales.findByIdAndUpdate(req.body.saleID, {
-      StockSold: req.body.stockSold,
-      SaleDate: req.body.saleDate,
-      referenceNo: req.body?.referenceNo || "",
-    });
-
-    // Return the updated sale record
-    res.json(updatedResult);
-  } catch (error) {
-    res.status(500).send({ error, message: error?.message || "An error occurred" });
+    res.status(200).send({ message: "Sale updated successfully" });
+  } catch (err) {
+    console.error("Error in updateSales:", err);
+    res.status(500).send({ error: err.message });
   }
 };
+
+
+
+// // Update Selected Sale
+// const updateSelectedSale = async (req, res) => {
+//   try {
+//     // Find the existing sale record by ID
+//     const findSecondarySale = await SecondarySales.findOne({ _id: new ObjectId(req.body.saleID) });
+//     if (!findSecondarySale) {
+//       throw new Error("Sale not found");
+//     }
+
+//     // Find the available stock for the product in the specified warehouse
+//     const existsAvailableStock = await SecondaryAvailableStock.findOne({
+//       warehouseID: req.body.warehouseID,
+//       productID: req.body.productID,
+//     });
+
+//     if (!existsAvailableStock) {
+//       throw new Error("Available stock not found");
+//     }
+
+//     // Calculate the stock difference and ensure there is sufficient stock available
+//     if (findSecondarySale?.StockSold !== req.body.stockSold) {
+//       const stockDifference = req.body.stockSold - findSecondarySale?.StockSold;
+//       const updatedAvailableStock = existsAvailableStock?.stock + stockDifference;
+
+//       if (updatedAvailableStock < 0) {
+//         throw new Error("Stock is not available");
+//       }
+
+//       // Fetch related purchases in FIFO order
+//       const purchases = await SecondaryPurchase.find({
+//         ProductID: req.body.productID,
+//         warehouseID: req.body.warehouseID,
+//       }).sort({ PurchaseDate: 1 });
+
+//       // Handle returning stock if sale is reducing
+//       if (stockDifference < 0) {
+//         let remainingToReturn = Math.abs(stockDifference);
+
+//         for (const purchase of purchases) {
+//           if (remainingToReturn <= 0) break;
+
+//           const updatedRemainingStock = purchase.remainingStock + remainingToReturn;
+
+//           await SecondaryPurchase.findByIdAndUpdate(purchase._id, {
+//             $set: {
+//               remainingStock: Math.min(updatedRemainingStock, purchase.QuantityPurchased),
+//               isUsed: updatedRemainingStock < purchase.QuantityPurchased,
+//             },
+//           });
+
+//           remainingToReturn -= (purchase.QuantityPurchased - purchase.remainingStock);
+//         }
+//       }
+
+//       // Handle consuming additional stock if sale is increasing
+//       if (stockDifference > 0) {
+//         let remainingToDeduct = stockDifference;
+
+//         for (const purchase of purchases) {
+//           if (remainingToDeduct <= 0) break;
+
+//           if (purchase.remainingStock > 0) {
+//             const deductStock = Math.min(remainingToDeduct, purchase.remainingStock);
+
+//             await SecondaryPurchase.findByIdAndUpdate(purchase._id, {
+//               $inc: { remainingStock: -deductStock },
+//               $set: { isUsed: purchase.remainingStock - deductStock === 0 },
+//             });
+
+//             remainingToDeduct -= deductStock;
+//           }
+//         }
+
+//         if (remainingToDeduct > 0) {
+//           throw new Error("Insufficient stock available in linked purchases");
+//         }
+//       }
+//     }
+
+//     // Update the sale record
+//     const updatedResult = await SecondarySales.findByIdAndUpdate(
+//       req.body.saleID,
+//       {
+//         userID: req.body.userID,
+//         ProductID: req.body.productID,
+//         StockSold: req.body.stockSold,
+//         SaleDate: req.body.saleDate,
+//         SupplierName: req.body.supplierName,
+//         StoreName: req.body.storeName,
+//         BrandID: req.body.brandID,
+//         warehouseID: req.body.warehouseID,
+//         referenceNo: req.body?.referenceNo || "",
+//       },
+//       { new: true }
+//     );
+
+//     const requestby = req?.headers?.requestby ? new ObjectId(req.headers.requestby) : "";
+
+//     // Start History Data - Log the update in history
+//     const productInfo = await SecondaryProduct.findOne({ _id: updatedResult.ProductID });
+//     const historyPayload = {
+//       productID: updatedResult.ProductID,
+//       saleID: updatedResult._id,
+//       description: `${productInfo?.name || ""} product sale updated (No of sale: ${req.body?.stockSold || 0})`,
+//       type: HISTORY_TYPE.UPDATE,
+//       createdById: requestby,
+//       updatedById: requestby,
+//       historyDate: getTimezoneWiseDate(req.body.saleDate),
+//       historyID: updatedResult?.HistoryID || "",
+//     };
+
+//     await addHistoryData(historyPayload, req?.headers?.role, null, METHODS.UPDATE);
+//     // End History Data
+
+//     // Update the available stock based on the new sale
+//     const stockDifference = (findSecondarySale?.StockSold - req.body.stockSold)
+//     const availableStockPayload = {
+//       warehouseID: req.body.warehouseID,
+//       productID: req.body.productID,
+//       stock: existsAvailableStock?.stock + stockDifference,
+//     };
+
+//     await SecondaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
+//     await PrimaryAvailableStock.findByIdAndUpdate(existsAvailableStock._id, availableStockPayload);
+
+//     // Update the sold stock function (adjust stock when sale is updated)
+//     soldStock(req.body.productID, req.body.stockSold, true, findSecondarySale?.StockSold);
+
+//     // Update the sale in the PrimarySales collection
+//     await PrimarySales.findByIdAndUpdate(req.body.saleID, {
+//       StockSold: req.body.stockSold,
+//       SaleDate: req.body.saleDate,
+//       referenceNo: req.body?.referenceNo || "",
+//     });
+
+//     // Return the updated sale record
+//     res.json(updatedResult);
+//   } catch (error) {
+//     res.status(500).send({ error, message: error?.message || "An error occurred" });
+//   }
+// };
 
 // const updateSelectedSale = async (req, res) => {
 //   try {

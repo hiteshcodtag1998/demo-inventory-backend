@@ -47,6 +47,8 @@ const PurchaseSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "history"
     },
+    remainingStock: { type: Number, default: 0 },
+    isUsed: { type: Boolean, default: false },
     isActive: {
       type: Boolean,
       default: true

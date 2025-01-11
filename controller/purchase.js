@@ -33,7 +33,8 @@ const addPurchase = async (req, res) => {
           StoreName: product.storeName,
           BrandID: product.brandID,
           warehouseID: product.warehouseID,
-          referenceNo: product?.referenceNo || ""
+          referenceNo: product?.referenceNo || "",
+          remainingStock: product.quantityPurchased || 0
         });
 
         let purchaseProduct = await addPurchaseDetails.save();
@@ -165,6 +166,8 @@ const getAllPurchaseData = async (req, res) => {
       BrandID: 1,
       TotalPurchaseAmount: 1,
       referenceNo: 1,
+      remainingStock: 1,
+      isUsed: 1,
       isActive: 1,
       createdAt: 1,
       updatedAt: 1
