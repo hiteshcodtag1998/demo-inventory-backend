@@ -427,39 +427,52 @@ const getPurchaseDataByProductId = async (req, res) => {
 
 // Delete Selected Product
 const deleteSelectedPurchase = async (req, res) => {
-  let needToRemoveItem = 0;
+  try {
+    let needToRemoveItem = 0;
 
-  const purchaseInfo = await SecondaryPurchase.findOne({ _id: req.params.id }).lean();
-  console.log('purchaseInfo', purchaseInfo)
-  if (!purchaseInfo) {
-    throw new Error("Purchase not found");
-  }
-
-  needToRemoveItem = purchaseInfo?.QuantityPurchased || 0
-
-  const deletePurchase = await SecondaryPurchase.deleteOne(
-    { _id: req.params.id }
-  ).then(async () => {
-    const historyPayload = {
-      purchaseID: req.params.id,
-      description: `${purchaseInfo?.ProductID?.name || ""} purchase deleted`,
-      type: HISTORY_TYPE.DELETE
+    const purchaseInfo = await SecondaryPurchase.findOne({ _id: req.params.id }).lean();
+    console.log('purchaseInfo', purchaseInfo)
+    if (!purchaseInfo) {
+      throw new Error("Purchase not found");
     }
-    addHistoryData(historyPayload, req?.headers?.role, HISTORY_TYPE.DELETE).catch(err => console.log('Err', err))
-    await PrimaryPurchase.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
-      console.log('Delete primary purchase error')
-    })
-  });
 
-  needToRemoveItem = await deleteOrUpdateSaleByPurchase(purchaseInfo, needToRemoveItem);
+    needToRemoveItem = purchaseInfo?.QuantityPurchased || 0
 
-  needToRemoveItem = await deleteOrUpdateWriteOffByPurchase(purchaseInfo, needToRemoveItem);
+    // Track the remaining stock to redistribute
+    const remainingStockToRedistribute = purchaseInfo.remainingStock || 0;
 
-  // await pullStockFromAvailableStock(purchaseInfo)
+    const deletePurchase = await SecondaryPurchase.deleteOne(
+      { _id: req.params.id }
+    ).then(async () => {
+      const historyPayload = {
+        purchaseID: req.params.id,
+        description: `${purchaseInfo?.ProductID?.name || ""} purchase deleted`,
+        type: HISTORY_TYPE.DELETE
+      }
+      addHistoryData(historyPayload, req?.headers?.role, HISTORY_TYPE.DELETE).catch(err => console.log('Err', err))
+      await PrimaryPurchase.findByIdAndUpdate(req.params.id, { isActive: false }).catch(() => {
+        console.log('Delete primary purchase error')
+      })
+    });
 
-  res.json({
-    deletePurchase
-  });
+    needToRemoveItem = await deleteOrUpdateSaleByPurchase(purchaseInfo, needToRemoveItem);
+
+    needToRemoveItem = await deleteOrUpdateWriteOffByPurchase(purchaseInfo, needToRemoveItem);
+
+    // await pullStockFromAvailableStock(purchaseInfo)
+
+    // Redistribute remaining stock
+    if (remainingStockToRedistribute > 0) {
+      await adjustRemainingStock(purchaseInfo, remainingStockToRedistribute);
+    }
+
+    res.json({
+      deletePurchase
+    });
+  } catch (error) {
+    console.log("Error deleting purchase:", error);
+    res.status(500).send({ error: error.message || "An error occurred" });
+  }
 };
 
 const deleteOrUpdateSaleByPurchase = async (purchaseInfo, needToRemoveItem) => {
@@ -600,6 +613,41 @@ const deleteOrUpdateWriteOffByPurchase = async (purchaseInfo, needToRemoveItem) 
     return needToRemoveItem
   } catch (error) {
     console.log('Error while deleteOrUpdateWriteOffByPurchase', error);
+  }
+};
+
+// Adjust remaining stock after a purchase is deleted
+const adjustRemainingStock = async (deletedPurchase, remainingStockToRedistribute) => {
+  try {
+    // Fetch all remaining purchases for the same product and warehouse, ordered by date (FIFO)
+    const remainingPurchases = await SecondaryPurchase.find({
+      ProductID: deletedPurchase.ProductID,
+      warehouseID: deletedPurchase.warehouseID,
+      _id: { $ne: deletedPurchase._id }, // Exclude the deleted purchase
+    }).sort({ PurchaseDate: 1 });
+
+    // Redistribute remaining stock among other purchases
+    for (const purchase of remainingPurchases) {
+      if (remainingStockToRedistribute <= 0) break;
+
+      const availableSpace = purchase.QuantityPurchased - purchase.remainingStock;
+      const stockToAdd = Math.min(remainingStockToRedistribute, availableSpace);
+
+      // Update the purchase with the redistributed stock
+      await SecondaryPurchase.findByIdAndUpdate(purchase._id, {
+        $inc: { remainingStock: stockToAdd },
+        $set: { isUsed: purchase.remainingStock + stockToAdd < purchase.QuantityPurchased },
+      });
+
+      remainingStockToRedistribute -= stockToAdd;
+    }
+
+    // Log if there's leftover stock that couldn't be redistributed
+    if (remainingStockToRedistribute > 0) {
+      console.log(`Unallocated stock: ${remainingStockToRedistribute} could not be redistributed.`);
+    }
+  } catch (error) {
+    console.log("Error adjusting remaining stock:", error);
   }
 };
 
