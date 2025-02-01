@@ -10,7 +10,8 @@ const { SecondaryAvailableStock, PrimaryAvailableStock } = require("../models/av
 const { ObjectId } = require('mongodb');
 const moment = require("moment-timezone");
 const { getTimezoneWiseDate } = require("../utils/handler");
-const { SecondaryPurchase } = require("../models/purchase");
+const { SecondaryPurchase, PrimaryPurchase } = require("../models/purchase");
+const purchaseStock = require("./purchaseStock");
 
 // Add WriteOff Details
 const addWriteOff = async (req, res) => {
@@ -430,6 +431,99 @@ const updateSelectedWriteOff = async (req, res) => {
     }
 };
 
+const deleteSelectedWriteOff = async (req, res) => {
+    try {
+        const writeOffId = req.params.id;
+        const writeOffInfo = await SecondaryWriteOff.aggregate([
+            {
+                $match: { _id: new ObjectId(writeOffId) }
+            },
+            {
+                $lookup: {
+                    from: 'purchases',
+                    localField: 'linkedPurchaseId',
+                    foreignField: '_id',
+                    as: 'linkedPurchaseId'
+                }
+            }
+        ]);
+
+        if (!writeOffInfo?.length) {
+            return res.status(404).json({ error: "WriteOff not found" });
+        }
+
+        let stockSold = writeOffInfo[0]?.StockSold || 0;
+        const linkedPurchases = writeOffInfo[0]?.linkedPurchaseId || [];
+
+        for (const purchase of linkedPurchases) {
+            const needToAddRemainingStock = purchase.QuantityPurchased - purchase.remainingStock;
+            if (needToAddRemainingStock > 0) {
+                await Promise.all([
+                    SecondaryPurchase.findByIdAndUpdate(purchase._id, { $inc: { remainingStock: needToAddRemainingStock } }),
+                    PrimaryPurchase.findByIdAndUpdate(purchase._id, { $inc: { remainingStock: needToAddRemainingStock } })
+                ]);
+            }
+            stockSold -= needToAddRemainingStock;
+            if (stockSold <= 0) break;
+        }
+
+        await Promise.all([
+            SecondaryWriteOff.deleteOne({ _id: writeOffId }),
+            pushStockToAvailableStock(writeOffInfo[0])
+        ])
+
+        const historyPayload = {
+            writeOffID: writeOffId,
+            description: `${writeOffInfo?.[0]?.ProductID?.name || ""} writeoff deleted`,
+            type: HISTORY_TYPE.DELETE
+        };
+        addHistoryData(historyPayload, req.headers.role, HISTORY_TYPE.DELETE).catch(console.log);
+
+        await PrimaryWriteOff.findByIdAndUpdate(writeOffId, { isActive: false }).catch(() => {
+            console.log('Delete primary writeoff error');
+        });
+
+        res.json({ success: true, message: "WriteOff deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting writeoff:", error);
+        res.status(500).json({ error: error.message || "An error occurred" });
+    }
+};
+
+const pushStockToAvailableStock = async (writeOffInfo) => {
+    try {
+        const { ProductID: productId, warehouseID: warehouseId, StockSold } = writeOffInfo;
+
+        // push stock from SecondaryAvailableStock collection
+        const secondaryStock = await SecondaryAvailableStock.findOneAndUpdate(
+            { productID: new ObjectId(productId), warehouseID: new ObjectId(warehouseId) },
+            { $inc: { stock: +StockSold } },
+            { new: true }
+        );
+
+        if (!secondaryStock) {
+            console.log('Stock entry not found in SecondaryAvailableStock');
+            return;
+        }
+
+        // Push stock from PrimaryAvailableStock collection
+        const primaryStock = await PrimaryAvailableStock.findOneAndUpdate(
+            { productID: new ObjectId(productId), warehouseID: new ObjectId(warehouseId) },
+            { $inc: { stock: +StockSold } },
+            { new: true }
+        );
+
+        if (!primaryStock) {
+            console.log('Stock entry not found in PrimaryAvailableStock');
+            return;
+        }
+
+        purchaseStock(productId, StockSold, true)
+    } catch (error) {
+        console.log('Error while pushing stock and updating available stocks', error);
+    }
+};
+
 // const updateSelectedWriteOff = async (req, res) => {
 //     try {
 //         const findSecondarySale = await SecondaryWriteOff.findByIdAndUpdate(
@@ -584,4 +678,4 @@ const writeOffMultileItemsPdfDownload = async (req, res) => {
     }
 };
 
-module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount, writeOffPdfDownload, writeOffMultileItemsPdfDownload, updateSelectedWriteOff };
+module.exports = { addWriteOff, getWriteOffData, getTotalPurchaseAmount, writeOffPdfDownload, writeOffMultileItemsPdfDownload, updateSelectedWriteOff, deleteSelectedWriteOff };

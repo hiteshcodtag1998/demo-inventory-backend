@@ -10,8 +10,11 @@ app.get("/get", writeOff.getWriteOffData);
 
 app.post("/writeOff-pdf-download", writeOff.writeOffPdfDownload)
 
-// Update Selected sale
+// Update Selected writeoff
 app.post("/update", writeOff.updateSelectedWriteOff);
+
+// Delete Selected writeoff Item
+app.delete("/delete/:id", writeOff.deleteSelectedWriteOff);
 
 app.post("/writeOff-multipleitems-pdf-download", writeOff.writeOffMultileItemsPdfDownload)
 

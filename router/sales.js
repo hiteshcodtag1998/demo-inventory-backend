@@ -17,6 +17,9 @@ app.post("/sale-pdf-download", sales.salePdfDownload)
 // Update Selected sale
 app.post("/update", sales.updateSelectedSale);
 
+// Delete Selected Sale Item
+app.delete("/delete/:id", sales.deleteSelectedSale);
+
 app.post("/sale-multipleitems-pdf-download", sales.saleMultileItemsPdfDownload)
 
 module.exports = app;

@@ -11,7 +11,8 @@ const { invoiceBillMultipleItems } = require("../utils/templates/invoice-bill-mu
 const { SecondaryWarehouse } = require("../models/warehouses");
 const moment = require("moment-timezone");
 const { getTimezoneWiseDate } = require("../utils/handler");
-const { SecondaryPurchase } = require("../models/purchase");
+const { SecondaryPurchase, PrimaryPurchase } = require("../models/purchase");
+const purchaseStock = require("./purchaseStock");
 
 // Add Sales
 const addSales = async (req, res) => {
@@ -369,7 +370,6 @@ const getSalesData = async (req, res) => {
     },
     { $sort: { _id: -1 } }];
 
-  console.log('aggregationPiepline', JSON.stringify(aggregationPiepline))
   if (req?.headers?.role === ROLES.HIDE_MASTER_SUPER_ADMIN)
     findAllSalesData = await PrimarySales.aggregate(aggregationPiepline);
   else
@@ -553,7 +553,98 @@ const updateSelectedSale = async (req, res) => {
   }
 };
 
+const deleteSelectedSale = async (req, res) => {
+  try {
+    const saleId = req.params.id;
+    const salesInfo = await SecondarySales.aggregate([
+      {
+        $match: { _id: new ObjectId(saleId) }
+      },
+      {
+        $lookup: {
+          from: 'purchases',
+          localField: 'linkedPurchaseId',
+          foreignField: '_id',
+          as: 'linkedPurchaseId'
+        }
+      }
+    ]);
 
+    if (!salesInfo?.length) {
+      return res.status(404).json({ error: "Sales not found" });
+    }
+
+    let stockSold = salesInfo[0]?.StockSold || 0;
+    const linkedPurchases = salesInfo[0]?.linkedPurchaseId || [];
+
+    for (const purchase of linkedPurchases) {
+      const needToAddRemainingStock = purchase.QuantityPurchased - purchase.remainingStock;
+      if (needToAddRemainingStock > 0) {
+        await Promise.all([
+          SecondaryPurchase.findByIdAndUpdate(purchase._id, { $inc: { remainingStock: needToAddRemainingStock } }),
+          PrimaryPurchase.findByIdAndUpdate(purchase._id, { $inc: { remainingStock: needToAddRemainingStock } })
+        ]);
+      }
+      stockSold -= needToAddRemainingStock;
+      if (stockSold <= 0) break;
+    }
+
+    await Promise.all([
+      SecondarySales.deleteOne({ _id: saleId }),
+      pushStockToAvailableStock(salesInfo[0])
+    ])
+
+    const historyPayload = {
+      saleID: saleId,
+      description: `${salesInfo?.[0]?.ProductID?.name || ""} sales deleted`,
+      type: HISTORY_TYPE.DELETE
+    };
+    addHistoryData(historyPayload, req.headers.role, HISTORY_TYPE.DELETE).catch(console.log);
+
+    await PrimarySales.findByIdAndUpdate(saleId, { isActive: false }).catch(() => {
+      console.log('Delete primary sales error');
+    });
+
+    res.json({ success: true, message: "Sale deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting sales:", error);
+    res.status(500).json({ error: error.message || "An error occurred" });
+  }
+};
+
+const pushStockToAvailableStock = async (saleInfo) => {
+  try {
+    const { ProductID: productId, warehouseID: warehouseId, StockSold } = saleInfo;
+
+    // push stock from SecondaryAvailableStock collection
+    const secondaryStock = await SecondaryAvailableStock.findOneAndUpdate(
+      { productID: new ObjectId(productId), warehouseID: new ObjectId(warehouseId) },
+      { $inc: { stock: +StockSold } },
+      { new: true }
+    );
+
+    if (!secondaryStock) {
+      console.log('Stock entry not found in SecondaryAvailableStock');
+      return;
+    }
+
+    // Push stock from PrimaryAvailableStock collection
+    const primaryStock = await PrimaryAvailableStock.findOneAndUpdate(
+      { productID: new ObjectId(productId), warehouseID: new ObjectId(warehouseId) },
+      { $inc: { stock: +StockSold } },
+      { new: true }
+    );
+
+    if (!primaryStock) {
+      console.log('Stock entry not found in PrimaryAvailableStock');
+      return;
+    }
+
+    purchaseStock(productId, StockSold, true)
+  } catch (error) {
+    console.log('Error while pushing stock and updating available stocks', error);
+  }
+};
 
 // // Update Selected Sale
 // const updateSelectedSale = async (req, res) => {
@@ -855,4 +946,4 @@ const saleMultileItemsPdfDownload = async (req, res) => {
   }
 }
 
-module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount, salePdfDownload, saleMultileItemsPdfDownload, updateSelectedSale };
+module.exports = { addSales, getMonthlySales, getSalesData, getTotalSalesAmount, salePdfDownload, saleMultileItemsPdfDownload, updateSelectedSale, deleteSelectedSale };
