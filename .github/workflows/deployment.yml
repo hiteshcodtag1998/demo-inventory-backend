@@ -7,8 +7,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
     - name: Setup Node.js
       uses: actions/setup-node@v2
@@ -25,4 +27,8 @@ jobs:
 
     - name: Deploy to Lightsail
       run: |
-        ssh -o StrictHostKeyChecking=no ubuntu@13.202.39.167 'cd /home/ubuntu/inventory-demo/demo-inventory-backend && sudo git pull && pm2 kill && pm2 start server.js --name "demo-inventory-backend" -f'
+        ssh -o StrictHostKeyChecking=no ubuntu@3.110.178.94 'cd /home/ubuntu/demo-inventory-backend || exit 1
+        git pull || exit 1
+        npm install || exit 1  # Install any new dependencies after pulling
+        pm2 kill || exit 1
+        pm2 start server.js --name "demo-inventory-backend" -f || exit 1'
