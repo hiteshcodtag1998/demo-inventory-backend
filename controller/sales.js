@@ -640,7 +640,8 @@ const pushStockToAvailableStock = async (saleInfo) => {
       return;
     }
 
-    purchaseStock(productId, StockSold, true)
+
+    purchaseStock(productId, StockSold)
   } catch (error) {
     console.log('Error while pushing stock and updating available stocks', error);
   }
